@@ -1,59 +1,97 @@
+
 name: Storm Launcher Android ARM64 Build
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [main, master]
   pull_request:
-    branches: [ main, master ]
+    branches: [main, master]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
-  build-android-debug:
+  build-android:
+    name: Build Storm Launcher APK
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
+          distribution: temurin
           java-version: '17'
 
-      - name: Setup Android SDK, NDK, and CMake
-        uses: android-actions/setup-android@v3
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          packages: 'platform-tools'
+          accept-android-sdk-licenses: true
+          log-accepted-android-sdk-licenses: false
 
-      - name: Install Android NDK 27 and CMake 3.31
+      - name: Install Android SDK Platform, NDK and CMake
         run: |
-          yes | sdkmanager --licenses >/dev/null 2>&1 || true
-          sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;27.2.12479018" "cmake;3.31.5"
+          sdkmanager --install \
+            "platforms;android-36.1" \
+            "build-tools;36.0.0" \
+            "platform-tools" \
+            "ndk;27.2.12479018" \
+            "cmake;3.31.5"
 
-      - name: Build Box64 ARM64 Native Translator (Upstream Source)
-        env:
-          ANDROID_NDK_HOME: ${{ env.ANDROID_SDK_ROOT }}/ndk/27.2.12479018
+      - name: Verify Android Development Environment
         run: |
-          chmod +x runtime/box64/build_box64_arm64.sh native/build-scripts/build_all_arm64.sh
-          ./runtime/box64/build_box64_arm64.sh build/runtime-staging/box64 || echo "Box64 cross-build step completed with warnings"
+          java -version
+          sdkmanager --list_installed
+          echo "ANDROID_SDK_ROOT=$ANDROID_HOME"
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '9.3.1'
 
-      - name: Run Unit & Robolectric Tests
-        run: gradle :app:testDebugUnitTest -PenableNativeBridge=true
-
-      - name: Assemble Debug APK (with C++20 JNI Native Bridge)
-        run: gradle :app:assembleDebug -PenableNativeBridge=true
-
-      - name: Verify Debug APK Output
+      - name: Clean Previous Build
         run: |
-          ls -lh app/build/outputs/apk/debug/app-debug.apk
+          gradle --no-daemon clean
 
-      - name: Upload Debug APK Artifact
+      - name: Run Unit Tests
+        run: |
+          gradle --no-daemon \
+            :app:testDebugUnitTest \
+            -PenableNativeBridge=true \
+            --stacktrace
+
+      - name: Build Android ARM64 APK
+        run: |
+          gradle --no-daemon \
+            :app:assembleDebug \
+            -PenableNativeBridge=true \
+            --stacktrace
+
+      - name: Verify APK
+        run: |
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+
+          if [ ! -f "$APK" ]; then
+            echo "ERROR: APK was not generated!"
+            exit 1
+          fi
+
+          if [ ! -s "$APK" ]; then
+            echo "ERROR: APK is empty!"
+            exit 1
+          fi
+
+          echo "APK BUILD SUCCESSFUL"
+          ls -lh "$APK"
+
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: storm-launcher-arm64-debug-apk
+          name: Storm-Launcher-Android-ARM64
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+          retention-days: 14
