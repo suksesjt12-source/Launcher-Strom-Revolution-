@@ -1,8 +1,12 @@
 package com.example
 
+import android.content.ComponentName
+import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
+import android.os.Environment
+import android.provider.DocumentsContract
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -41,17 +45,19 @@ import kotlinx.coroutines.withContext
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { StormAuditApp() }
+        setContent { StormLauncherApp() }
     }
 }
 
 @Composable
-private fun StormAuditApp() {
+private fun StormLauncherApp() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var report by remember { mutableStateOf<GameScanReport?>(null) }
     var isScanning by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var shortcut by remember { mutableStateOf<WinlatorShortcut?>(null) }
+    var launcherMessage by remember { mutableStateOf<String?>(null) }
 
     val folderPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree()
@@ -80,6 +86,28 @@ private fun StormAuditApp() {
         }
     }
 
+    val shortcutPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            try {
+                val content = context.contentResolver.openInputStream(uri)?.use { input ->
+                    input.bufferedReader(Charsets.UTF_8).use { it.readText() }
+                } ?: throw IllegalArgumentException("File shortcut tidak dapat dibaca.")
+                val documentId = DocumentsContract.getDocumentId(uri)
+                shortcut = WinlatorShortcutParser.parse(
+                    desktopText = content,
+                    documentId = documentId,
+                    primaryStorageRoot = Environment.getExternalStorageDirectory().absolutePath
+                )
+                launcherMessage = "Shortcut siap. Tekan MAIN KAN DI WINLATOR."
+            } catch (exception: Exception) {
+                shortcut = null
+                launcherMessage = exception.message ?: "Shortcut tidak valid atau lokasinya tidak didukung."
+            }
+        }
+    }
+
     MaterialTheme {
         Surface(modifier = Modifier.fillMaxSize()) {
             Column(
@@ -95,20 +123,59 @@ private fun StormAuditApp() {
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = "Android ARM64 · Port research build",
+                    text = "Android companion · Winlator Mali",
                     style = MaterialTheme.typography.titleSmall
                 )
 
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(
                         modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text("Status proyek", fontWeight = FontWeight.Bold)
-                        Text("Aplikasi audit folder game sedang disiapkan.")
+                        Text("Jalankan game melalui Winlator", fontWeight = FontWeight.Bold)
                         Text(
-                            "Ini belum menjalankan game dan bukan hasil recompile native. " +
-                                "EXE Windows x86 tidak dapat dijalankan langsung sebagai kode ARM64."
+                            "APK ini menghubungkan shortcut game yang sudah dibuat di Winlator " +
+                                "ke layar game Winlator. Game tetap dijalankan oleh Wine/Box64 di Winlator, " +
+                                "bukan oleh runtime native di APK ini."
+                        )
+                        Button(
+                            onClick = {
+                                launcherMessage = openWinlator(context)
+                                    ?: "Winlator dibuka. Buat container, tambahkan NSUNSR.exe sebagai shortcut, lalu ekspor shortcut tersebut."
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("BUKA WINLATOR MALI")
+                        }
+                        Button(
+                            onClick = { shortcutPicker.launch(arrayOf("*/*")) },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("PILIH SHORTCUT GAME (.DESKTOP)")
+                        }
+                        shortcut?.let { selected ->
+                            Divider()
+                            Text("Game: " + selected.name, fontWeight = FontWeight.SemiBold)
+                            Text("Container ID: " + selected.containerId)
+                            Text("File: " + selected.fileName)
+                            Button(
+                                onClick = {
+                                    launcherMessage = launchWinlatorShortcut(context, selected)
+                                        ?: "Perintah dikirim ke Winlator. Game akan terbuka bila container dan shortcut masih valid."
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("MAIN KAN DI WINLATOR")
+                            }
+                        }
+                        launcherMessage?.let {
+                            Text(it, color = MaterialTheme.colorScheme.primary)
+                        }
+                        Text(
+                            "Cara menyiapkan: di Winlator, buat container dan shortcut untuk NSUNSR.exe. " +
+                                "Pada menu shortcut, pilih Export Shortcut. Pilih file hasil ekspor di sini. " +
+                                "Lokasi ekspor bawaan Winlator: /storage/emulated/0/Winlator/Shortcuts.",
+                            style = MaterialTheme.typography.bodySmall
                         )
                     }
                 }
@@ -119,51 +186,103 @@ private fun StormAuditApp() {
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Text("Perangkat", fontWeight = FontWeight.Bold)
-                        Text("Model: ${Build.MODEL}")
-                        Text("Android API: ${Build.VERSION.SDK_INT}")
-                        Text("ABI: ${Build.SUPPORTED_ABIS.firstOrNull() ?: "Tidak diketahui"}")
+                        Text("Model: " + Build.MODEL)
+                        Text("Android API: " + Build.VERSION.SDK_INT)
+                        Text("ABI: " + (Build.SUPPORTED_ABIS.firstOrNull() ?: "Tidak diketahui"))
                     }
                 }
 
-                Button(
-                    onClick = { folderPicker.launch(null) },
-                    enabled = !isScanning,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("PILIH FOLDER GAME PC")
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text("Audit folder PC (opsional)", fontWeight = FontWeight.Bold)
+                        Text(
+                            "Pemindaian ini hanya memeriksa nama file dan header NSUNSR.exe. " +
+                                "Ini tidak mengubah atau menyalin file game."
+                        )
+                        Button(
+                            onClick = { folderPicker.launch(null) },
+                            enabled = !isScanning,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("PILIH FOLDER GAME PC")
+                        }
+                        if (isScanning) {
+                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                            Text("Memeriksa NSUNSR.exe, DLL, dan folder data…")
+                        }
+                        error?.let {
+                            Text("Kesalahan: " + it, color = MaterialTheme.colorScheme.error)
+                        }
+                        report?.let { result ->
+                            ScanResultCard(result)
+                        }
+                    }
                 }
-
-                if (isScanning) {
-                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                    Text("Memeriksa NSUNSR.exe, DLL, dan folder data…")
-                }
-
-                error?.let {
-                    Text("Kesalahan: $it", color = MaterialTheme.colorScheme.error)
-                }
-
-                report?.let { result ->
-                    ScanResultCard(result)
-                }
-
-                Text(
-                    text = "Catatan: folder game tetap berada di penyimpanan perangkat. " +
-                        "Aplikasi hanya membaca nama file dan header executable; file game " +
-                        "tidak diunggah ke GitHub.",
-                    style = MaterialTheme.typography.bodySmall
-                )
 
                 TextButton(
                     onClick = {
                         report = null
                         error = null
+                        shortcut = null
+                        launcherMessage = null
                     },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("HAPUS HASIL PEMINDAIAN")
+                    Text("BERSIHKAN HASIL")
                 }
             }
         }
+    }
+}
+
+private fun resolveWinlatorPackage(context: Context): String? {
+    val candidates = listOf("com.ludashi.benchmark", "com.winlator.mali")
+    return candidates.firstOrNull { packageName ->
+        context.packageManager.getLaunchIntentForPackage(packageName) != null
+    }
+}
+
+private fun openWinlator(context: Context): String? {
+    val packageName = resolveWinlatorPackage(context)
+        ?: return "Winlator Mali tidak ditemukan. Pasang Winlator Mali Ludashi atau varian standar terlebih dahulu."
+    val intent = context.packageManager.getLaunchIntentForPackage(packageName)
+        ?: return "Aktivitas utama Winlator tidak ditemukan."
+    return try {
+        context.startActivity(intent)
+        null
+    } catch (exception: Exception) {
+        "Tidak dapat membuka Winlator: " + (exception.message ?: "kesalahan tidak diketahui")
+    }
+}
+
+private fun launchWinlatorShortcut(context: Context, shortcut: WinlatorShortcut): String? {
+    val packageName = resolveWinlatorPackage(context)
+        ?: return "Winlator Mali tidak ditemukan. Pasang aplikasinya terlebih dahulu."
+    val component = ComponentName(packageName, "com.winlator.cmod.XServerDisplayActivity")
+    val activityInfo = runCatching {
+        context.packageManager.getActivityInfo(component, 0)
+    }.getOrNull()
+
+    if (activityInfo?.exported != true) {
+        return "Versi Winlator yang terpasang tidak menyediakan aktivitas peluncuran shortcut yang kompatibel."
+    }
+
+    val intent = Intent(Intent.ACTION_VIEW).apply {
+        this.component = component
+        putExtra("container_id", shortcut.containerId)
+        putExtra("shortcut_path", shortcut.absolutePath)
+        putExtra("shortcut_name", shortcut.name)
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    }
+
+    return try {
+        context.startActivity(intent)
+        null
+    } catch (exception: Exception) {
+        "Winlator menolak peluncuran shortcut: " + (exception.message ?: "kesalahan tidak diketahui")
     }
 }
 
@@ -175,13 +294,13 @@ private fun ScanResultCard(report: GameScanReport) {
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text("Hasil audit folder", fontWeight = FontWeight.Bold)
-            Text("Folder: ${report.folderName}")
-            Text("Executable: ${report.executableName ?: "NSUNSR.exe tidak ditemukan"}")
-            Text("Format: ${report.peInspection?.description ?: "Belum dapat dibaca"}")
-            Text("Folder data: ${if (report.hasDataFolder) "Ditemukan" else "Belum ditemukan"}")
-            Text("DLL ditemukan: ${report.dllCount}")
-            Text("File CPK ditemukan: ${report.cpkCount}")
-            Text("Entri diperiksa: ${report.scannedEntries}")
+            Text("Folder: " + report.folderName)
+            Text("Executable: " + (report.executableName ?: "NSUNSR.exe tidak ditemukan"))
+            Text("Format: " + (report.peInspection?.description ?: "Belum dapat dibaca"))
+            Text("Folder data: " + if (report.hasDataFolder) "Ditemukan" else "Belum ditemukan")
+            Text("DLL ditemukan: " + report.dllCount)
+            Text("File CPK ditemukan: " + report.cpkCount)
+            Text("Entri diperiksa: " + report.scannedEntries)
             if (report.scanLimitReached) {
                 Text(
                     "Batas pemindaian tercapai; hasil mungkin belum mencakup semua subfolder.",
@@ -191,12 +310,12 @@ private fun ScanResultCard(report: GameScanReport) {
             if (report.dllNames.isNotEmpty()) {
                 Divider()
                 Text("Contoh DLL:", fontWeight = FontWeight.SemiBold)
-                report.dllNames.forEach { Text("• $it") }
+                report.dllNames.forEach { Text("• " + it) }
             }
             Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = if (report.peInspection?.isPeImage == true) {
-                    "Executable PE terdeteksi. Audit file berhasil; proses porting native masih memerlukan source code atau implementasi ulang engine."
+                    "Executable Windows terdeteksi. File tetap harus dijalankan melalui runtime kompatibilitas seperti Winlator."
                 } else {
                     "Executable PE yang valid belum terverifikasi. Periksa apakah folder yang dipilih benar."
                 },

@@ -1,8 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <queries>
+        <package android:name="com.ludashi.benchmark" />
+        <package android:name="com.winlator.mali" />
+    </queries>
+
     <application
         android:allowBackup="false"
-        android:label="Storm Revolution Audit"
+        android:label="Storm Revolution Launcher"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
         <activity
