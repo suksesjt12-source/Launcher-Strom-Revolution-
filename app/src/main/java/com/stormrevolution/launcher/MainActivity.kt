@@ -91,8 +91,14 @@ class MainActivity : Activity() {
         content.addView(card {
             addView(label("STATUS PROYEK", 12, orange, true))
             addView(label("Launcher: aktif", 14, white))
+            addView(label("Vulkan native bootstrap: terpasang", 13, white))
             addView(label("Engine game native ARM64: belum tersedia", 13, muted))
             addView(label("Tidak ada Wine, Box64, DXVK, atau Winlator.", 12, muted))
+        })
+        content.addView(card {
+            addView(label("DIAGNOSTIK GPU VULKAN", 12, orange, true))
+            addView(label(StormEngine.getVulkanReport(), 12, white))
+            addView(label("Ini memeriksa driver Vulkan perangkat. Modul ini belum menjalankan NSUNSR.exe atau merender game.", 11, muted))
         })
         show(content)
     }
