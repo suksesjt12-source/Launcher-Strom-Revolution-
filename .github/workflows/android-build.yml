@@ -1,87 +1,74 @@
-name: Storm Launcher Android ARM64 Build
+name: Storm Revolution Standalone APK Build
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [android-app-bootstrap]
   pull_request:
-    branches: [ main, master ]
+    branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
-  build-android-debug:
+  build-standalone-runtime:
+    name: Build Storm launcher with embedded Mali runtime
     runs-on: ubuntu-latest
+    timeout-minutes: 120
 
     steps:
-      - name: Checkout repository
+      - name: Checkout launcher configuration
         uses: actions/checkout@v4
 
-      - name: Prepare Debug Keystore
-        run: |
-          if [ ! -f debug.keystore ]; then
-            if [ -f debug.keystore.base64 ]; then
-              base64 -d debug.keystore.base64 > debug.keystore
-            else
-              keytool -genkeypair -v -keystore debug.keystore \
-                -storepass android -alias androiddebugkey -keypass android \
-                -keyalg RSA -keysize 2048 -validity 10000 \
-                -dname "CN=Android Debug,O=Android,C=US"
-            fi
-          fi
-          ls -lh debug.keystore
-
-      - name: Set up JDK 21
+      - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
-          java-version: '21'
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
 
-      - name: Install Android 36.1 Platform, NDK, and CMake
+      - name: Install Android SDK, NDK and CMake
         run: |
-          set +o pipefail
-          yes | sdkmanager --licenses >/dev/null 2>&1 || true
-          set -o pipefail
+          sdkmanager \
+            "platforms;android-34" \
+            "build-tools;35.0.0" \
+            "cmake;3.22.1" \
+            "ndk;29.0.14206865"
 
-          NDK_PKG=$(sdkmanager --list | grep -oE 'ndk;27\.[0-9]+\.[0-9]+' | sort -V | tail -n 1 || true)
-          if [ -z "$NDK_PKG" ]; then
-            NDK_PKG=$(sdkmanager --list | grep -oE 'ndk;[0-9]+\.[0-9]+\.[0-9]+' | sort -V | tail -n 1)
-          fi
-
-          CMAKE_PKG=$(sdkmanager --list | grep -oE 'cmake;[0-9]+\.[0-9]+\.[0-9]+' | sort -V | tail -n 1)
-
-          echo "Installing SDK packages: platforms;android-36 platforms;android-36.1 build-tools;36.0.0 $NDK_PKG $CMAKE_PKG"
-          sdkmanager "platforms;android-36" "platforms;android-36.1" "build-tools;36.0.0" "$NDK_PKG" "$CMAKE_PKG"
-
-          SDK_ROOT="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
-          echo "ANDROID_SDK_ROOT=$SDK_ROOT" >> "$GITHUB_ENV"
-          NDK_DIR=$(find "$SDK_ROOT/ndk" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)
-          echo "ANDROID_NDK_HOME=$NDK_DIR" >> "$GITHUB_ENV"
-
-      - name: Build Box64 ARM64 Native Translator (Upstream Source)
+      - name: Fetch pinned Winlator Mali runtime source
         run: |
-          chmod +x runtime/box64/build_box64_arm64.sh native/build-scripts/build_all_arm64.sh
-          ./runtime/box64/build_box64_arm64.sh build/runtime-staging/box64 || echo "Box64 cross-build step completed with warnings"
+          git clone --depth 1 --branch bionic-mali-1.2 --recurse-submodules \
+            https://github.com/GunaCharanTeja/WinlatorMali.git winlator
+          cd winlator
+          test "$(git rev-parse HEAD)" = "0411a4b602ed00d71bef52e6a7ccb82a8e709b1a"
+          git submodule update --init --recursive
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '9.3.1'
+      - name: Apply Storm branding
+        run: python3 scripts/patch_winlator_branding.py winlator/app/build.gradle
 
-      - name: Run Unit & Robolectric Tests
-        run: gradle :app:testDebugUnitTest --no-daemon --stacktrace
+      - name: Install custom Storm home screen and game launcher
+        run: python3 scripts/patch_storm_home.py winlator
 
-      - name: Assemble Debug APK (with C++20 JNI Native Bridge)
-        run: gradle :app:assembleDebug -PenableNativeBridge=true --no-daemon --stacktrace
-
-      - name: Verify Debug APK Output
+      - name: Build standalone Storm launcher APK
+        working-directory: winlator
         run: |
-          ls -lh app/build/outputs/apk/debug/app-debug.apk
+          chmod +x ./gradlew
+          ./gradlew :app:assembleLudashiDebug --no-daemon --stacktrace
 
-      - name: Upload Debug APK Artifact
+      - name: Verify APK
+        run: |
+          APK="winlator/app/build/outputs/apk/ludashi/debug/app-ludashi-debug.apk"
+          test -s "$APK"
+          ls -lh "$APK"
+          sha256sum "$APK"
+
+      - name: Upload standalone Storm APK
         uses: actions/upload-artifact@v4
         with:
-          name: storm-launcher-arm64-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: storm-revolution-standalone-mali-apk
+          path: winlator/app/build/outputs/apk/ludashi/debug/app-ludashi-debug.apk
           if-no-files-found: error
+          retention-days: 14

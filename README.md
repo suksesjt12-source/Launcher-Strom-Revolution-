@@ -1,41 +1,50 @@
-# Storm Launcher — Windows ARM64 Compatibility Launcher
+# Storm Revolution Launcher — custom Android launcher
 
-An Android native Kotlin + Jetpack Compose + C++20 JNI compatibility launcher designed to import, validate, configure, and run **NARUTO SHIPPUDEN: Ultimate Ninja STORM Revolution** (`NSUNSR.exe`) on Android ARM64 devices (optimized for **Infinix Hot 50 4G / MediaTek Helio G100 / Mali-G57 MC2 / 8 GB RAM / Android 14**).
+This repository builds a **single Android APK** for launching a user's own Windows copy of Naruto Shippuden: Ultimate Ninja Storm Revolution. The APK includes the Winlator Mali compatibility runtime; no separately installed Winlator app is required.
 
-> **Important Notice:** No proprietary game files or copyrighted character assets are bundled in this project. Users must supply their own legitimate PC installation of `NSUNSR.exe` via Android Storage Access Framework (SAF) and import compatible open-source ARM64 runtime packages (Wine WoW64, Box64, DXVK, RootFS).
+## Storm-specific interface
 
-## Architecture Overview
+The build-time patch installs a dedicated Storm home screen as the default screen. It provides:
 
-```
-Android ARM64 (Infinix Hot 50 4G — Helio G100 / Mali-G57 MC2)
- └─ Storm Launcher (Kotlin + Jetpack Compose + Material 3)
-     ├─ C++20 JNI Bridge (app/src/main/cpp/libstorm_runtime_bridge.so)
-     │   ├─ runtime_bridge.cpp (ELF inspector, libvulkan.so dlopen probe, sysinfo)
-     │   ├─ process_bridge.cpp (POSIX fork/execve/waitpid/kill + non-blocking pipes)
-     │   └─ input_bridge.cpp   (AF_UNIX XInput binary packet dispatcher)
-     ├─ Game File Manager (SAF DocumentFile scanner + PE32/PE32+ binary parser)
-     ├─ Windows Runtime Engine (Wine WoW64 + Box64 / Box86 translation router)
-     ├─ Graphics Translation Engine (Mali-safe DXVK D3D9->Vulkan / WineD3D GLES fallback)
-     └─ Fullscreen Landscape Viewport + Interactive Virtual Gamepad Overlay
-```
+- a Storm Revolution game panel;
+- a file picker for the user's own `NSUNSR.exe`;
+- a selector for the Windows/Wine container to use;
+- a **Main Sekarang** button that launches the selected executable directly inside the embedded runtime;
+- shortcuts to the app's controller, driver/runtime and file-management settings.
 
-## Implemented Modules & Screens
+The launch action calls the app's internal `XServerDisplayActivity` with the selected container and executable path. It does not send an Intent to another Winlator package.
 
-1. **Splash Screen** — Hardware & Vulkan pre-flight probe.
-2. **Dashboard** — Live status for Runtime, Game Installation, Game Location, Wine, Box86/Box64/WoW64, Graphics Driver, and strictly gated `PLAY` button.
-3. **Game Library** — Android SAF directory importer, non-destructive scanner, PE32 COFF header verifier, `.cpk` & DirectX structure check, storage capacity guard, private sandbox copier.
-4. **Game Configuration** — `NSUNSR_OPTIMIZED` profile (`960x540`, `30 FPS`, `Balanced`), `LOW`/`BALANCED`/`HIGH` presets, PulseAudio/ALSA config, isolated Wine Prefix Manager (Create/Repair/Reset/Backup ZIP/Restore ZIP).
-5. **Runtime Manager** — Real on-disk ELF/DLL verification for Wine, Box86, Box64, WoW64, DXVK, Vulkan Backend, Graphics Driver, Audio Backend, RootFS, and Runtime Libraries + `.zip`/`.tar.gz`/`.wcp` archive installer.
-6. **Graphics Settings** — Real EGL14/GLES20 & Vulkan probe, automatic Mali-G57 protection (Turnip blocked), DXVK vs WineD3D vs Automatic, shader cache management, anisotropic filtering, VSync, and FPS cap.
-7. **Controls Settings** — Virtual gamepad profiles, opacity, size, sensitivity, dead zone, response curves, Bluetooth/USB gamepad & keyboard mapping, plus landscape layout editor.
-8. **System Information** — Live SoC, CPU cores/load, RAM, storage, thermal throttling status, JNI bridge status, and GPU capabilities.
-9. **Debug Console** — 13-condition automated diagnostic audit engine, PII-sanitized log export, clipboard copy, and crash code decoder.
-10. **Log Viewer** — Searchable, category-filtered live runtime log stream.
+## Important technical distinction
 
-## Documentation
+This is **not** a native ARM64 port of the game. The target executable is a Windows x86 binary, so this build uses Wine and Box64 inside the Storm APK to provide Windows compatibility. A true native Android engine would require the original game source/build dependencies or a major clean-room reimplementation; the EXE alone is insufficient.
 
-- [Installation & Runtime Setup](docs/INSTALLATION.md)
-- [Game Configuration & Presets](docs/GAME_CONFIG.md)
-- [Mali-G57 GPU Compatibility Guide](docs/MALI_COMPATIBILITY.md)
-- [Troubleshooting & Error Codes](docs/TROUBLESHOOTING.md)
-- [Third-Party Notices](THIRD_PARTY_NOTICES)
+## First-run use
+
+1. Build and install the APK from the GitHub Actions artifact.
+2. Open the app and complete the runtime's first-run extraction/setup.
+3. Copy your own complete PC game folder to shared Android storage. Keep the original folder structure intact.
+4. Open the Storm home screen and choose the exact `NSUNSR.exe` inside that folder.
+5. Create a Wine/Proton container using **Buat / Atur Container** if none exists. Select that container on the home screen.
+6. Press **Main Sekarang**.
+
+The executable picker stores the selected path and checks that it is an accessible `NSUNSR.exe`. The game files are not bundled in the APK. The selected Windows container still needs its normal Wine setup; the launcher does not silently fabricate or auto-create a configured container.
+
+## Device target and validation
+
+Initial target: Infinix Hot 50 4G, MediaTek Helio G100, Mali-G57 MC2, 8 GB RAM, Android 14. The APK build is separate from proof of gameplay compatibility. Boot, rendering, audio, controls, stability, temperature and frame rate still require testing on the physical device.
+
+## Build source
+
+GitHub Actions:
+- fetches Winlator Mali branch `bionic-mali-1.2` at pinned commit `0411a4b602ed00d71bef52e6a7ccb82a8e709b1a`;
+- applies Storm package branding and the custom home/game-launch patch;
+- builds the Ludashi/Mali flavor with `:app:assembleLudashiDebug`;
+- uploads `storm-revolution-standalone-mali-apk`.
+
+The old Jetpack Compose audit prototype under `app/` is not used by the current standalone runtime workflow.
+
+## Licensing and game files
+
+Winlator Mali is MIT-licensed. Upstream and third-party notices must remain available in [THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES). Do not commit proprietary game executables, DLLs, archives or extracted assets to this repository.
+
+See [docs/PORTING_REALITY.md](docs/PORTING_REALITY.md) for the porting constraints and validation checklist.
