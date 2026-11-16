@@ -1,40 +1,42 @@
-STORM LAUNCHER — THIRD-PARTY OPEN-SOURCE NOTICES
-==================================================
+STORM REVOLUTION LAUNCHER — THIRD-PARTY OPEN-SOURCE NOTICES
+=============================================================
 
-Storm Launcher integrates with and relies upon the following open-source projects.
-All trademarks and copyrights belong to their respective authors. No proprietary
-game assets or binaries are included in this repository or APK.
+The standalone APK is built from the MIT-licensed Winlator Mali source and includes or relies on third-party projects. All trademarks and copyrights remain with their respective owners. No proprietary game assets or binaries are included.
 
-1. Wine (Wine Is Not an Emulator)
+1. Winlator Mali
+   - Source: https://github.com/GunaCharanTeja/WinlatorMali
+   - Source ref: bionic-mali-1.2
+   - Pinned commit: 0411a4b602ed00d71bef52e6a7ccb82a8e709b1a
+   - License: MIT
+   - Role: Android compatibility-runtime application, container UI, display, and integration.
+
+2. Wine
    - Upstream: https://www.winehq.org/
    - License: GNU Lesser General Public License v2.1 (LGPL-2.1)
-   - Role: Windows API compatibility layer, WoW64 subsystem, WineD3D Direct3D 9 translation.
+   - Role: Windows API compatibility layer.
 
-2. Box64
+3. Box64
    - Upstream: https://github.com/ptitSeb/box64
-   - License: MIT License
-   - Role: Linux Userspace x86_64-to-ARM64 translator with DynaRec JIT.
+   - License: MIT
+   - Role: Linux userspace x86_64-to-ARM64 translator with dynamic recompilation.
 
-3. Box86
+4. Box86
    - Upstream: https://github.com/ptitSeb/box86
-   - License: MIT License
-   - Role: Optional Linux Userspace x86-to-ARM32 translator for multiarch devices.
+   - License: MIT
+   - Role: Optional 32-bit x86 compatibility component where supported by the selected runtime.
 
-4. DXVK
+5. DXVK
    - Upstream: https://github.com/doitsujin/dxvk
    - License: zlib/libpng License
-   - Role: Vulkan-based Direct3D 9 / 10 / 11 translation layer.
-
-5. Winlator (Reference Architecture)
-   - Upstream: https://github.com/winebox64/winlator
-   - License: MIT License
-   - Role: Architectural reference for Android non-root Wine + Box64 containerization.
+   - Role: Direct3D-to-Vulkan translation for supported game configurations.
 
 6. PulseAudio
    - Upstream: https://www.freedesktop.org/wiki/Software/PulseAudio/
    - License: GNU Lesser General Public License v2.1 (LGPL-2.1)
-   - Role: Userspace audio routing with configurable anti-underrun buffering.
+   - Role: Userspace audio server.
 
-7. Android Jetpack, Compose, Material 3, Kotlinx Serialization, DataStore
+7. Android Jetpack and bundled Android libraries
    - Upstream: https://developer.android.com/jetpack
-   - License: Apache License 2.0
+   - License: Apache License 2.0, where applicable.
+
+The corresponding upstream license texts and notices must be retained in the source and distribution. The game executable, DLLs, archives, and assets remain the user's responsibility and are not distributed by this project.

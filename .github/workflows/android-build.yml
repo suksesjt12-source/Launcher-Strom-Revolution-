@@ -1,8 +1,8 @@
-name: Storm Android APK Build
+name: Storm Revolution Standalone APK Build
 
 on:
   push:
-    branches: [main, android-app-bootstrap]
+    branches: [android-app-bootstrap]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -11,47 +11,61 @@ permissions:
   contents: read
 
 jobs:
-  build:
+  build-standalone-runtime:
+    name: Build embedded Mali runtime APK
     runs-on: ubuntu-latest
+    timeout-minutes: 120
+
     steps:
-      - name: Checkout
+      - name: Checkout launcher configuration
         uses: actions/checkout@v4
 
-      - name: Set up JDK 21
+      - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "21"
+          java-version: "17"
+          cache: gradle
 
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-        with:
-          packages: platform-tools
+        uses: android-actions/setup-android@v4
 
-      - name: Install Android SDK packages
+      - name: Install Android SDK, NDK and CMake
         run: |
-          sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+          sdkmanager \
+            "platforms;android-34" \
+            "build-tools;35.0.0" \
+            "cmake;3.22.1" \
+            "ndk;29.0.14206865"
 
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: "9.3.1"
+      - name: Fetch pinned Winlator Mali runtime source
+        run: |
+          git clone --depth 1 --branch bionic-mali-1.2 --recurse-submodules \
+            https://github.com/GunaCharanTeja/WinlatorMali.git winlator
+          cd winlator
+          test "$(git rev-parse HEAD)" = "0411a4b602ed00d71bef52e6a7ccb82a8e709b1a"
+          git submodule update --init --recursive
 
-      - name: Run unit tests
-        run: gradle :app:testDebugUnitTest --no-daemon --stacktrace
+      - name: Apply standalone Storm branding
+        run: python3 scripts/patch_winlator_branding.py winlator/app/build.gradle
 
-      - name: Build Android debug APK
-        run: gradle :app:assembleDebug --no-daemon --stacktrace
+      - name: Build single-app Ludashi/Mali APK
+        working-directory: winlator
+        run: |
+          chmod +x ./gradlew
+          ./gradlew :app:assembleLudashiDebug --no-daemon --stacktrace
 
       - name: Verify APK
         run: |
-          test -s app/build/outputs/apk/debug/app-debug.apk
-          ls -lh app/build/outputs/apk/debug/app-debug.apk
+          APK="winlator/app/build/outputs/apk/ludashi/debug/app-ludashi-debug.apk"
+          test -s "$APK"
+          ls -lh "$APK"
+          sha256sum "$APK"
 
-      - name: Upload APK artifact
+      - name: Upload standalone APK
         uses: actions/upload-artifact@v4
         with:
-          name: storm-revolution-launcher-debug
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: storm-revolution-standalone-mali-apk
+          path: winlator/app/build/outputs/apk/ludashi/debug/app-ludashi-debug.apk
           if-no-files-found: error
           retention-days: 14
