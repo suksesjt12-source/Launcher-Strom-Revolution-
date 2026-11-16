@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   build-standalone-runtime:
-    name: Build embedded Mali runtime APK
+    name: Build Storm launcher with embedded Mali runtime
     runs-on: ubuntu-latest
     timeout-minutes: 120
 
@@ -46,10 +46,13 @@ jobs:
           test "$(git rev-parse HEAD)" = "0411a4b602ed00d71bef52e6a7ccb82a8e709b1a"
           git submodule update --init --recursive
 
-      - name: Apply standalone Storm branding
+      - name: Apply Storm branding
         run: python3 scripts/patch_winlator_branding.py winlator/app/build.gradle
 
-      - name: Build single-app Ludashi/Mali APK
+      - name: Install custom Storm home screen and game launcher
+        run: python3 scripts/patch_storm_home.py winlator
+
+      - name: Build standalone Storm launcher APK
         working-directory: winlator
         run: |
           chmod +x ./gradlew
@@ -62,7 +65,7 @@ jobs:
           ls -lh "$APK"
           sha256sum "$APK"
 
-      - name: Upload standalone APK
+      - name: Upload standalone Storm APK
         uses: actions/upload-artifact@v4
         with:
           name: storm-revolution-standalone-mali-apk
