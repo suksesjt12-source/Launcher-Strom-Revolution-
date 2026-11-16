@@ -1,6 +1,7 @@
 package com.example
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Test
 import java.io.File
@@ -15,7 +16,7 @@ class WinlatorShortcutParserTest {
     """.trimIndent()
 
     @Test
-    fun parsesExportedWinlatorShortcut() {
+    fun parsesExportedWinlatorShortcutWithContainerId() {
         val root = File("/storage/emulated/0")
         val result = WinlatorShortcutParser.parse(
             desktopText = desktopText,
@@ -30,6 +31,31 @@ class WinlatorShortcutParserTest {
             File(root, "Winlator/Shortcuts/NSUNSR.desktop").canonicalPath,
             result.absolutePath
         )
+    }
+
+    @Test
+    fun acceptsDesktopShortcutWithoutContainerIdForManualEntry() {
+        val result = WinlatorShortcutParser.parse(
+            desktopText = "[Desktop Entry]\nName=Naruto",
+            documentId = "primary:Winlator/Shortcuts/Naruto.desktop",
+            primaryStorageRoot = "/storage/emulated/0"
+        )
+
+        assertNull(result.containerId)
+        assertEquals("Naruto", result.name)
+    }
+
+    @Test
+    fun acceptsDirectExeSelection() {
+        val result = WinlatorShortcutParser.parse(
+            desktopText = null,
+            documentId = "primary:Games/NSUNSR.exe",
+            primaryStorageRoot = "/storage/emulated/0"
+        )
+
+        assertNull(result.containerId)
+        assertEquals("NSUNSR", result.name)
+        assertEquals("NSUNSR.exe", result.fileName)
     }
 
     @Test
@@ -48,18 +74,18 @@ class WinlatorShortcutParserTest {
         assertThrows(IllegalArgumentException::class.java) {
             WinlatorShortcutParser.parse(
                 desktopText,
-                "primary:../NSUNSR.desktop",
+                "primary:../NSUNSR.exe",
                 "/storage/emulated/0"
             )
         }
     }
 
     @Test
-    fun rejectsShortcutWithoutContainerId() {
+    fun rejectsOtherFileTypes() {
         assertThrows(IllegalArgumentException::class.java) {
             WinlatorShortcutParser.parse(
-                "[Desktop Entry]\nName=Game",
-                "primary:Winlator/Shortcuts/Game.desktop",
+                null,
+                "primary:Games/readme.txt",
                 "/storage/emulated/0"
             )
         }

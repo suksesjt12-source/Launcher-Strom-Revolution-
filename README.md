@@ -6,28 +6,28 @@ A small Android companion app for a user-owned PC installation of *NARUTO SHIPPU
 
 The app can:
 - Inspect a selected PC game folder without modifying it.
-- Read a Winlator-exported `.desktop` shortcut from shared internal storage.
-- Pass the shortcut's container ID and file path to the exported Winlator Mali game-display activity.
-- Open Winlator Mali directly so the user can create a container or export a game shortcut.
+- Select the actual `NSUNSR.exe` from shared internal storage, or read a Winlator-exported `.desktop` shortcut.
+- Pass the selected file path and container ID to Winlator Mali's exported game-display activity.
+- Open Winlator Mali directly so the user can configure a container.
 
 The game itself is still executed by the user's installed Winlator runtime. This APK is **not** a standalone emulator and is **not** a native ARM64 recompilation of the commercial game.
 
 ## Required setup
 
 1. Install and initialize Winlator Mali (Ludashi flavor or standard flavor) on the Android device.
-2. In Winlator, create a container and add the user's own `NSUNSR.exe` as a game shortcut.
-3. In the Winlator shortcut menu, choose **Export Shortcut**. The default export folder is `/storage/emulated/0/Winlator/Shortcuts`.
-4. Open this companion app and choose **PILIH SHORTCUT GAME (.DESKTOP)**.
-5. Select the exported `.desktop` file, then tap **MAIN KAN DI WINLATOR**.
+2. In Winlator, create a container and make sure the container can access the folder that stores the user's own game files.
+3. In this companion app, choose `NSUNSR.exe` from shared internal storage, or choose an exported `.desktop` shortcut.
+4. Enter the ID of the Winlator container that should run the game. If the selected desktop file includes `container_id:`, the app fills this automatically.
+5. Tap **MAINKAN DI WINLATOR**.
 
-The shortcut file must be on primary shared internal storage. The app does not read another app's private container directory.
+The Winlator container ID is distinct from the game's filename. For a container still using Winlator's default name (for example, `Container-1`), the trailing number is its ID. If the container was renamed, use the numeric ID that was assigned when it was created.
 
 ## Compatibility and limits
 
-- The launcher integration targets the Winlator Mali source variants using package IDs `com.ludashi.benchmark` and `com.winlator.mali`, with the exported activity `com.winlator.cmod.XServerDisplayActivity`.
-- That external activity interface is version-specific and may change in later Winlator releases.
+- The launcher integration targets Winlator Mali source variants using package IDs `com.ludashi.benchmark` and `com.winlator.mali`, with exported activity `com.winlator.cmod.XServerDisplayActivity`.
+- That external activity interface is version-specific and may change in future Winlator releases.
 - A successful handoff only means Android started the Winlator activity. It does not guarantee the game will boot, render correctly, or reach playable performance.
-- Game compatibility remains dependent on the Winlator version, Wine/Box64 build, graphics wrapper/driver, game files, and device GPU.
+- Game compatibility depends on the Winlator version, Wine/Box64 build, graphics wrapper/driver, game files, and device GPU.
 - The supplied `NSUNSR.exe` was identified in the initial audit as Windows PE32 / Intel x86. Windows x86 machine code cannot be directly recompiled into Android ARM64 machine code from the EXE alone.
 - Do not commit or upload proprietary executables, DLLs, archives, or extracted game assets to this repository.
 

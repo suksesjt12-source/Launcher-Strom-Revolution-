@@ -20,11 +20,13 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Divider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -37,6 +39,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -57,6 +60,7 @@ private fun StormLauncherApp() {
     var isScanning by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var shortcut by remember { mutableStateOf<WinlatorShortcut?>(null) }
+    var containerIdInput by remember { mutableStateOf("") }
     var launcherMessage by remember { mutableStateOf<String?>(null) }
 
     val folderPicker = rememberLauncherForActivityResult(
@@ -86,24 +90,39 @@ private fun StormLauncherApp() {
         }
     }
 
-    val shortcutPicker = rememberLauncherForActivityResult(
+    val gameFilePicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
         if (uri != null) {
             try {
-                val content = context.contentResolver.openInputStream(uri)?.use { input ->
-                    input.bufferedReader(Charsets.UTF_8).use { it.readText() }
-                } ?: throw IllegalArgumentException("File shortcut tidak dapat dibaca.")
                 val documentId = DocumentsContract.getDocumentId(uri)
-                shortcut = WinlatorShortcutParser.parse(
-                    desktopText = content,
-                    documentId = documentId,
-                    primaryStorageRoot = Environment.getExternalStorageDirectory().absolutePath
-                )
-                launcherMessage = "Shortcut siap. Tekan MAIN KAN DI WINLATOR."
+                val selected = if (documentId.substringAfterLast(":").endsWith(".desktop", true)) {
+                    val content = context.contentResolver.openInputStream(uri)?.use { input ->
+                        input.bufferedReader(Charsets.UTF_8).use { it.readText() }
+                    } ?: throw IllegalArgumentException("File shortcut tidak dapat dibaca.")
+                    WinlatorShortcutParser.parse(
+                        desktopText = content,
+                        documentId = documentId,
+                        primaryStorageRoot = Environment.getExternalStorageDirectory().absolutePath
+                    )
+                } else {
+                    WinlatorShortcutParser.parse(
+                        desktopText = null,
+                        documentId = documentId,
+                        primaryStorageRoot = Environment.getExternalStorageDirectory().absolutePath
+                    )
+                }
+                shortcut = selected
+                containerIdInput = selected.containerId?.toString().orEmpty()
+                launcherMessage = if (selected.containerId == null) {
+                    "File terbaca. Masukkan ID container Winlator sebelum meluncurkan game."
+                } else {
+                    "File dan ID container terbaca. Periksa ID lalu tekan MAIN KAN DI WINLATOR."
+                }
             } catch (exception: Exception) {
                 shortcut = null
-                launcherMessage = exception.message ?: "Shortcut tidak valid atau lokasinya tidak didukung."
+                containerIdInput = ""
+                launcherMessage = exception.message ?: "File game atau shortcut tidak valid."
             }
         }
     }
@@ -134,47 +153,64 @@ private fun StormLauncherApp() {
                     ) {
                         Text("Jalankan game melalui Winlator", fontWeight = FontWeight.Bold)
                         Text(
-                            "APK ini menghubungkan shortcut game yang sudah dibuat di Winlator " +
-                                "ke layar game Winlator. Game tetap dijalankan oleh Wine/Box64 di Winlator, " +
-                                "bukan oleh runtime native di APK ini."
+                            "Game tetap dijalankan oleh Wine/Box64 di Winlator. APK ini hanya " +
+                                "membuka file game atau shortcut di container Winlator yang dipilih."
                         )
                         Button(
                             onClick = {
                                 launcherMessage = openWinlator(context)
-                                    ?: "Winlator dibuka. Buat container, tambahkan NSUNSR.exe sebagai shortcut, lalu ekspor shortcut tersebut."
+                                    ?: "Winlator dibuka. Buat container lalu pilih file game atau shortcut di aplikasi ini."
                             },
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text("BUKA WINLATOR MALI")
                         }
                         Button(
-                            onClick = { shortcutPicker.launch(arrayOf("*/*")) },
+                            onClick = { gameFilePicker.launch(arrayOf("*/*")) },
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text("PILIH SHORTCUT GAME (.DESKTOP)")
+                            Text("PILIH NSUNSR.EXE / SHORTCUT")
                         }
                         shortcut?.let { selected ->
                             Divider()
                             Text("Game: " + selected.name, fontWeight = FontWeight.SemiBold)
-                            Text("Container ID: " + selected.containerId)
                             Text("File: " + selected.fileName)
+                            OutlinedTextField(
+                                value = containerIdInput,
+                                onValueChange = { value ->
+                                    containerIdInput = value.filter { it.isDigit() }.take(6)
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                label = { Text("ID container Winlator") },
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                            )
+                            Text(
+                                "Jika nama container masih bawaan, ID biasanya terlihat pada nama seperti Container-1. " +
+                                    "Gunakan angka ID container yang berisi game tersebut.",
+                                style = MaterialTheme.typography.bodySmall
+                            )
                             Button(
                                 onClick = {
-                                    launcherMessage = launchWinlatorShortcut(context, selected)
-                                        ?: "Perintah dikirim ke Winlator. Game akan terbuka bila container dan shortcut masih valid."
+                                    val id = containerIdInput.toIntOrNull()
+                                    if (id == null || id <= 0) {
+                                        launcherMessage = "Masukkan ID container berupa angka lebih dari 0."
+                                    } else {
+                                        launcherMessage = launchWinlatorShortcut(context, selected, id)
+                                            ?: "Perintah peluncuran dikirim ke Winlator. Game hanya akan terbuka jika container dan file game valid."
+                                    }
                                 },
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                Text("MAIN KAN DI WINLATOR")
+                                Text("MAINKAN DI WINLATOR")
                             }
                         }
                         launcherMessage?.let {
                             Text(it, color = MaterialTheme.colorScheme.primary)
                         }
                         Text(
-                            "Cara menyiapkan: di Winlator, buat container dan shortcut untuk NSUNSR.exe. " +
-                                "Pada menu shortcut, pilih Export Shortcut. Pilih file hasil ekspor di sini. " +
-                                "Lokasi ekspor bawaan Winlator: /storage/emulated/0/Winlator/Shortcuts.",
+                            "Pilih NSUNSR.exe yang berada di penyimpanan bersama, atau pilih file .desktop hasil Export Shortcut dari Winlator. " +
+                                "Jika shortcut tidak menyimpan ID container, masukkan ID secara manual.",
                             style = MaterialTheme.typography.bodySmall
                         )
                     }
@@ -227,6 +263,7 @@ private fun StormLauncherApp() {
                         report = null
                         error = null
                         shortcut = null
+                        containerIdInput = ""
                         launcherMessage = null
                     },
                     modifier = Modifier.fillMaxWidth()
@@ -258,7 +295,11 @@ private fun openWinlator(context: Context): String? {
     }
 }
 
-private fun launchWinlatorShortcut(context: Context, shortcut: WinlatorShortcut): String? {
+private fun launchWinlatorShortcut(
+    context: Context,
+    shortcut: WinlatorShortcut,
+    containerId: Int
+): String? {
     val packageName = resolveWinlatorPackage(context)
         ?: return "Winlator Mali tidak ditemukan. Pasang aplikasinya terlebih dahulu."
     val component = ComponentName(packageName, "com.winlator.cmod.XServerDisplayActivity")
@@ -272,7 +313,7 @@ private fun launchWinlatorShortcut(context: Context, shortcut: WinlatorShortcut)
 
     val intent = Intent(Intent.ACTION_VIEW).apply {
         this.component = component
-        putExtra("container_id", shortcut.containerId)
+        putExtra("container_id", containerId)
         putExtra("shortcut_path", shortcut.absolutePath)
         putExtra("shortcut_name", shortcut.name)
         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
