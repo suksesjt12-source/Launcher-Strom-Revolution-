@@ -1,40 +1,50 @@
-# Storm Revolution Launcher — standalone Android runtime
+# Storm Revolution Launcher — custom Android launcher
 
-This project builds a **single Android APK** containing a customized Winlator Mali runtime. The user does not need to install or open a separate Winlator application.
+This repository builds a **single Android APK** for launching a user's own Windows copy of Naruto Shippuden: Ultimate Ninja Storm Revolution. The APK includes the Winlator Mali compatibility runtime; no separately installed Winlator app is required.
 
-## What the standalone APK is
+## Storm-specific interface
 
-The build fetches the pinned Winlator Mali source, applies Storm Revolution Launcher branding, then builds its Ludashi/Mali flavor as one Android app. The APK includes the compatibility runtime required to run Windows software on Android, rather than sending a launch request to another installed app.
+The build-time patch installs a dedicated Storm home screen as the default screen. It provides:
 
-The underlying runtime uses Wine and Box64 (with the graphics/audio components supplied by the selected Winlator Mali source). This is an embedded compatibility environment, **not a native ARM64 recompile of Naruto Storm Revolution**.
+- a Storm Revolution game panel;
+- a file picker for the user's own `NSUNSR.exe`;
+- a selector for the Windows/Wine container to use;
+- a **Main Sekarang** button that launches the selected executable directly inside the embedded runtime;
+- shortcuts to the app's controller, driver/runtime and file-management settings.
 
-## What is required to play
+The launch action calls the app's internal `XServerDisplayActivity` with the selected container and executable path. It does not send an Intent to another Winlator package.
 
-1. Install the generated Storm Revolution Launcher APK.
-2. Open the app once and allow its initial runtime files to be prepared.
-3. Create a container inside the app for the user's own Windows game installation.
-4. Add the user's own `NSUNSR.exe` as a game shortcut in that container.
-5. Launch the shortcut from the same Storm Revolution Launcher app.
+## Important technical distinction
 
-The game files are not included in the APK. The user must copy their legally acquired PC game folder to the Android device. The app's first usable build will provide the integrated Winlator Mali interface; automating first-run container creation and direct game boot is a subsequent step, not yet verified.
+This is **not** a native ARM64 port of the game. The target executable is a Windows x86 binary, so this build uses Wine and Box64 inside the Storm APK to provide Windows compatibility. A true native Android engine would require the original game source/build dependencies or a major clean-room reimplementation; the EXE alone is insufficient.
 
-## Device target
+## First-run use
 
-Initial target: Infinix Hot 50 4G, MediaTek Helio G100, Mali-G57 MC2, 8 GB RAM, Android 14. Actual game compatibility, graphical correctness, temperature and frame rate must be tested on the physical phone. No 30 FPS or successful boot claim is made before that test.
+1. Build and install the APK from the GitHub Actions artifact.
+2. Open the app and complete the runtime's first-run extraction/setup.
+3. Copy your own complete PC game folder to shared Android storage. Keep the original folder structure intact.
+4. Open the Storm home screen and choose the exact `NSUNSR.exe` inside that folder.
+5. Create a Wine/Proton container using **Buat / Atur Container** if none exists. Select that container on the home screen.
+6. Press **Main Sekarang**.
+
+The executable picker stores the selected path and checks that it is an accessible `NSUNSR.exe`. The game files are not bundled in the APK. The selected Windows container still needs its normal Wine setup; the launcher does not silently fabricate or auto-create a configured container.
+
+## Device target and validation
+
+Initial target: Infinix Hot 50 4G, MediaTek Helio G100, Mali-G57 MC2, 8 GB RAM, Android 14. The APK build is separate from proof of gameplay compatibility. Boot, rendering, audio, controls, stability, temperature and frame rate still require testing on the physical device.
 
 ## Build source
 
-The GitHub Actions workflow:
+GitHub Actions:
 - fetches Winlator Mali branch `bionic-mali-1.2` at pinned commit `0411a4b602ed00d71bef52e6a7ccb82a8e709b1a`;
-- uses its Ludashi/Mali Android runtime;
-- changes the application ID to `com.stormrevolution.launcher` and the app label to `Storm Revolution Launcher`;
-- builds `assembleLudashiDebug`;
-- uploads the resulting APK as `storm-revolution-standalone-mali-apk`.
+- applies Storm package branding and the custom home/game-launch patch;
+- builds the Ludashi/Mali flavor with `:app:assembleLudashiDebug`;
+- uploads `storm-revolution-standalone-mali-apk`.
 
-The old Jetpack Compose audit prototype source under `app/` in this repository is not the runtime used by this standalone build workflow.
+The old Jetpack Compose audit prototype under `app/` is not used by the current standalone runtime workflow.
 
 ## Licensing and game files
 
-Winlator Mali is MIT-licensed; the project preserves upstream notices and the licenses of included runtime components in [THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES). Runtime downloads may be provided by the upstream project. Do not commit or upload proprietary game executables, DLLs, archives or extracted assets to this repository.
+Winlator Mali is MIT-licensed. Upstream and third-party notices must remain available in [THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES). Do not commit proprietary game executables, DLLs, archives or extracted assets to this repository.
 
-See [docs/PORTING_REALITY.md](docs/PORTING_REALITY.md) for technical limitations and verification status.
+See [docs/PORTING_REALITY.md](docs/PORTING_REALITY.md) for the porting constraints and validation checklist.
