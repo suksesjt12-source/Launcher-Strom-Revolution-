@@ -5,6 +5,9 @@ on:
   push:
     branches:
       - native-android-kotlin
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: read
@@ -37,6 +40,14 @@ jobs:
 
       - name: Build debug APK
         run: gradle --no-daemon :app:assembleDebug
+
+      - name: Verify native ARM64 library is packaged
+        shell: bash
+        run: |
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+          test -s "$APK"
+          unzip -Z1 "$APK" | grep -Fx "lib/arm64-v8a/libstorm_engine.so"
+          echo "Native ARM64 Vulkan bootstrap library is packaged."
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
