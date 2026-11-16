@@ -25,6 +25,8 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
 
       - name: Install Android SDK packages
         run: |
@@ -38,7 +40,7 @@ jobs:
       - name: Run unit tests
         run: gradle :app:testDebugUnitTest --no-daemon --stacktrace
 
-      - name: Build ARM64 Android APK
+      - name: Build Android debug APK
         run: gradle :app:assembleDebug --no-daemon --stacktrace
 
       - name: Verify APK
