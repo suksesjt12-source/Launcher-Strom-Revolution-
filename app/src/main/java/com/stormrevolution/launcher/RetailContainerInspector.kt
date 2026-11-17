@@ -19,7 +19,7 @@ import java.util.Locale
 object RetailContainerInspector {
     private const val MAX_UTF_TABLE_BYTES = 16 * 1024 * 1024
     private const val MAX_CPK_FRAME_SCAN = 8L * 1024 * 1024
-    private const val MAX_CPK_SAMPLE_ROWS = 12
+    private const val MAX_CPK_SAMPLE_ROWS = 64
     private const val MAX_XFBIN_CHUNKS = 128
     private const val MAX_STRING_BYTES = 4096
 
