@@ -17,7 +17,8 @@ object XfbinPayloadExtractor {
         val models: Int,
         val textures: Int,
         val chunks: Int,
-        val pages: Int
+        val pages: Int,
+        val outputBytes: Long = 0L
     )
 
     private data class ChunkMap(val typeIndex: Int, val pathIndex: Int, val nameIndex: Int)
@@ -32,14 +33,15 @@ object XfbinPayloadExtractor {
         resolver: ContentResolver,
         uri: Uri,
         displayName: String,
-        filesDir: File
+        filesDir: File,
+        maxTotalOutputBytes: Long = MAX_TOTAL_OUTPUT
     ): Result {
         return try {
             val descriptor = resolver.openFileDescriptor(uri, "r")
                 ?: return failure("File descriptor XFBIN tidak tersedia.")
             descriptor.use { pfd ->
                 FileInputStream(pfd.fileDescriptor).channel.use { channel ->
-                    extractFromChannel(channel, displayName, filesDir)
+                    extractFromChannel(channel, displayName, filesDir, maxTotalOutputBytes)
                 }
             }
         } catch (error: Exception) {
@@ -48,7 +50,30 @@ object XfbinPayloadExtractor {
         }
     }
 
-    private fun extractFromChannel(channel: FileChannel, displayName: String, filesDir: File): Result {
+    fun extractFile(
+        file: File,
+        filesDir: File,
+        maxTotalOutputBytes: Long = MAX_TOTAL_OUTPUT
+    ): Result {
+        return try {
+            if (!file.isFile || !file.canRead()) {
+                return failure("File XFBIN hasil ekstraksi tidak dapat dibaca.")
+            }
+            FileInputStream(file).channel.use { channel ->
+                extractFromChannel(channel, file.name, filesDir, maxTotalOutputBytes)
+            }
+        } catch (error: Exception) {
+            failure("Ekstraksi file XFBIN gagal: " + error.javaClass.simpleName + ": " +
+                (error.message ?: "kesalahan I/O"))
+        }
+    }
+
+    private fun extractFromChannel(
+        channel: FileChannel,
+        displayName: String,
+        filesDir: File,
+        maxTotalOutputBytes: Long
+    ): Result {
         val fileSize = channel.size()
         if (fileSize < 68L) return failure("File terlalu kecil untuk struktur XFBIN.")
         val header = readBytes(channel, 0L, 28)
@@ -204,7 +229,7 @@ object XfbinPayloadExtractor {
                 pageMarkerFound = true
             } else if (typeName.equals("nuccChunkModel", ignoreCase = true) ||
                 typeName.equals("nuccChunkTexture", ignoreCase = true)) {
-                if (payloadSize > MAX_SINGLE_PAYLOAD || totalOutput >= MAX_TOTAL_OUTPUT) {
+                if (payloadSize > MAX_SINGLE_PAYLOAD || totalOutput >= maxTotalOutputBytes) {
                     skippedLarge++
                 } else {
                     val payload = readBytes(channel, payloadOffset, payloadSize)
@@ -213,7 +238,7 @@ object XfbinPayloadExtractor {
                         else extractTextureNut(payload)
                     if (extracted == null || extracted.isEmpty()) {
                         badPayloads++
-                    } else if (totalOutput + extracted.size > MAX_TOTAL_OUTPUT) {
+                    } else if (totalOutput + extracted.size > maxTotalOutputBytes) {
                         skippedLarge++
                     } else {
                         val extension = if (isModel) "nud" else "nut"
@@ -267,7 +292,7 @@ object XfbinPayloadExtractor {
         }
         report.append("\nCatatan: NUD/NUT baru diekstrak sebagai payload mentah. ")
             .append("Vertex/index buffer, skeleton, material, texture pixels, dan animasi belum diterjemahkan ke renderer.")
-        return Result(report.toString(), modelCount, textureCount, chunksSeen, pagesSeen)
+        return Result(report.toString(), modelCount, textureCount, chunksSeen, pagesSeen, totalOutput)
     }
 
     private fun extractModelNud(data: ByteArray, version: Int): ByteArray? {
