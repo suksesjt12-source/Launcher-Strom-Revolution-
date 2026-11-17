@@ -1,11 +1,14 @@
 # Storm Revolution — Native Android Engine
 
-## Engine Core v0.12.0
+## Engine Core v0.13.0 — one-folder automatic import
 
 - Extracts `.xfbin` entries from named-TOC CRI CPK archives through Android Storage Access Framework.
 - Decompresses CRILAYLA members with output-size validation and bounded per-file/total output sizes.
 - Writes extracted data to app-private storage; the selected CPK remains read-only.
 - Adds JVM unit tests for the CRILAYLA literal-stream path and malformed sizes; CI runs those tests before packaging the APK.
+- The user selects only the game installation folder; the scanner recursively searches for supported CPK and loose XFBIN files.
+- CPK archives are prioritized automatically (`data.cpk`, `data_win32.cpk`, region data, `stage.cpk`, then other archives); XFBIN payload extraction follows automatically.
+- Automatic import is capped at 512 MiB total output, 8 CPK archives, and 48 XFBIN files per scan.
 - ITOC-only archives are reported as unsupported rather than guessing their index layout.
 
 
@@ -39,10 +42,11 @@ The CPK reader parses UTF metadata and extracts a bounded number of named-TOC XF
 
 A real native game port still requires format validation against the user's actual PC installation, payload importers, and a clean-room implementation of the game runtime. The Windows PE32 executable cannot be converted into Android ARM64 code by ordinary APK compilation.
 
-## Asset inspection flow
+## Automatic folder import
 
-1. Choose **PILIH CPK & BACA INDEKS** and select `data/sim/data.cpk` or `stage.cpk`.
-2. Review the TOC report, then press **EKSTRAK XFBIN DARI CPK**. Supported XFBIN entries are written to app-private storage. CRILAYLA-compressed entries are decompressed during extraction.
+1. Choose **PILIH FOLDER GAME** once and select the installation folder that contains the game's `data` directory.
+2. Press **PINDAI FOLDER + IMPOR ASET OTOMATIS**. The scanner visits readable subfolders, finds CPK/XFBIN files, extracts supported XFBIN entries and then extracts NUD/NUT payloads.
+3. Read the import report shown in the app. No individual CPK or XFBIN file needs to be selected.
 
 1. Choose **PILIH FOLDER INSTALASI GAME**.
 2. Press **INVENTARIS ASET GAME**.
@@ -50,7 +54,7 @@ A real native game port still requires format validation against the user's actu
 4. Use the actual file names, signatures, CPK TOC and XFBIN type index to choose an individual `.xfbin` file.
 5. Press **PILIH XFBIN & EKSTRAK NUD/NUT**. Extracted payloads are saved only inside the app's private storage.
 
-The scanner and extractor never modify the selected game folder. The XFBIN extractor creates output only inside the app's private storage.
+The scanner and extractor never modify the selected game folder. Extracted XFBIN, NUD and NUT data is written only to app-private storage.
 
 ## Build
 
