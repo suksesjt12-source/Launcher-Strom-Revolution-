@@ -5,8 +5,10 @@
 #include <android/log.h>
 #include <jni.h>
 #include <vulkan/vulkan.h>
+#include "engine/engine_core.hpp"
 
 #include <atomic>
+#include <chrono>
 #include <cstdint>
 #include <mutex>
 #include <string>
@@ -22,6 +24,9 @@ namespace {
 std::mutex gRendererMutex;
 std::atomic<bool> gStopRenderer{false};
 std::thread gRendererThread;
+storm::EngineRuntime gEngineRuntime;
+storm::InputSystem gInputSystem;
+storm::AssetStore gAssetStore;
 
 bool hasDeviceExtension(VkPhysicalDevice device, const char* requestedName) {
     uint32_t count = 0;
@@ -159,6 +164,7 @@ void renderLoop(ANativeWindow* window) {
     VkQueue presentQueue = VK_NULL_HANDLE;
 
     auto cleanup = [&]() {
+        gEngineRuntime.stop();
         if (device != VK_NULL_HANDLE) vkDeviceWaitIdle(device);
         if (device != VK_NULL_HANDLE && inFlight != VK_NULL_HANDLE)
             vkDestroyFence(device, inFlight, nullptr);
@@ -494,6 +500,8 @@ void renderLoop(ANativeWindow* window) {
     }
 
     LOGI("Native Vulkan swapchain started: %ux%u", extent.width, extent.height);
+    gInputSystem.clear();
+    gEngineRuntime.start();
 
     while (!gStopRenderer.load()) {
         result = vkWaitForFences(device, 1, &inFlight, VK_TRUE, UINT64_MAX);
@@ -556,6 +564,12 @@ void renderLoop(ANativeWindow* window) {
         result = vkQueuePresentKHR(presentQueue, &presentInfo);
         vkQueueWaitIdle(presentQueue);
         if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) break;
+
+        const storm::InputFrame input = gInputSystem.snapshot();
+        const auto time = std::chrono::steady_clock::now().time_since_epoch();
+        const int64_t nowNs =
+            std::chrono::duration_cast<std::chrono::nanoseconds>(time).count();
+        gEngineRuntime.advance(nowNs, input);
     }
 
     LOGI("Native Vulkan surface renderer stopped");
@@ -618,4 +632,29 @@ Java_com_stormrevolution_launcher_StormEngine_nativeLoadAsset(
     const bool loaded = gAssetStore.loadRelative(chars);
     env->ReleaseStringUTFChars(relativePath, chars);
     return loaded ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C"
+JNIEXPORT jstring JNICALL
+Java_com_stormrevolution_launcher_StormEngine_nativeGetEngineReport(
+    JNIEnv* env, jobject /* caller */) {
+    const std::string report = gEngineRuntime.report() + "\n" + gAssetStore.report();
+    return env->NewStringUTF(report.c_str());
+}
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_stormrevolution_launcher_StormEngine_nativeSendTouch(
+    JNIEnv* /* env */, jobject /* caller */,
+    jint pointerId, jfloat x, jfloat y, jint action) {
+    gInputSystem.pushTouch(pointerId, x, y, action);
+}
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_stormrevolution_launcher_StormEngine_nativeSetAssetRoot(
+    JNIEnv* env, jobject /* caller */, jstring rootPath) {
+    if (rootPath == nullptr) return;
+    const char* chars = env->GetStringUTFChars(rootPath, nullptr);
+    if (chars == nullptr) return;
+    gAssetStore.setRoot(chars);
+    env->ReleaseStringUTFChars(rootPath, chars);
 }
