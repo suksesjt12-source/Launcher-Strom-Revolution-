@@ -78,149 +78,107 @@ object RetailContainerInspector {
             return Report(displayName, "File terlalu kecil untuk menjadi CPK.", false)
         }
 
-        val firstHeader = readBytes(channel, 0L, 16)
-        val marker = ascii(firstHeader, 0, 4)
-        if (!marker.startsWith("CPK")) {
+        // CRI packet header: magic[4], encflag[4], packetSize[8] (little-endian).
+        val header = readBytes(channel, 0L, 16)
+        val marker = ascii(header, 0, 4)
+        if (marker != "CPK ") {
             val utfLocation = findUtfMarker(channel, minOf(fileSize, 4096L))
             return Report(
                 displayName,
                 if (utfLocation >= 0L) {
-                    "Ditemukan @UTF pada offset 0x${utfLocation.toString(16)}, tetapi header CPK tidak ditemukan di offset 0. Format mungkin berupa UTF mandiri atau varian container."
+                    "Ditemukan @UTF pada offset 0x${utfLocation.toString(16)}, tetapi paket CPK tidak ditemukan di offset 0."
                 } else {
-                    "Signature CPK tidak ditemukan pada awal file. Header: ${hex(firstHeader, 16)}"
+                    "Signature CPK tidak ditemukan pada awal file. Header: ${hex(header, 16)}"
                 },
                 false
             )
         }
 
-        val cpkPayloadLength = u32le(firstHeader, 4)
-        val cpkPayloadStart = 16L
-        if (cpkPayloadLength <= 0L ||
-            cpkPayloadStart + cpkPayloadLength > fileSize) {
+        val packetSize = u64le(header, 8)
+        val packetStart = 16L
+        if (packetSize <= 0L || packetSize > MAX_UTF_TABLE_BYTES.toLong() ||
+            packetStart + packetSize > fileSize) {
             return Report(
                 displayName,
-                "Header CPK dikenali, tetapi ukuran frame utama tidak valid (payload=$cpkPayloadLength, file=$fileSize).",
+                "Header CPK dikenali, tetapi ukuran paket @UTF tidak valid: $packetSize byte.",
                 false
             )
         }
 
-        val cpkTable = parseUtfAt(channel, cpkPayloadStart, cpkPayloadLength)
-        if (cpkTable == null) {
-            return Report(
+        val cpkTable = parseUtfAt(channel, packetStart, packetSize)
+            ?: return Report(
                 displayName,
-                "Frame CPK ditemukan. Tabel @UTF tidak dapat diparse (mungkin terenkripsi/varian atau layout berbeda).",
+                "Paket CPK ditemukan, tetapi tabel @UTF tidak dapat diparse. Arsip mungkin memakai varian atau enkripsi berbeda.",
                 true
             )
-        }
 
         val output = StringBuilder()
-        output.append("CRI CPK / UTF dikenali\n")
-        output.append("Ukuran arsip: ").append(formatBytes(fileSize)).append('\n')
-        output.append("Tabel header: ").append(cpkTable.name).append('\n')
+        output.append("CRI CPK / UTF dikenali\\n")
+        output.append("Ukuran arsip: ").append(formatBytes(fileSize)).append('\\n')
+        output.append("Ukuran paket header: ").append(formatBytes(packetSize)).append('\\n')
+        output.append("Tabel header: ").append(cpkTable.name).append('\\n')
         output.append("Kolom header: ")
             .append(cpkTable.columns.joinToString(", ") { it.name })
-            .append('\n')
+            .append('\\n')
 
         val headerRow = cpkTable.rows.firstOrNull().orEmpty()
         val fileCount = headerRow["Files"]
         val contentOffset = headerRow["ContentOffset"]
-        val tocOffset = headerRow["TocOffset"]
-        if (fileCount != null) output.append("Jumlah file tercatat: ").append(fileCount).append('\n')
-        if (contentOffset != null) output.append("ContentOffset: ").append(contentOffset).append('\n')
-        if (tocOffset != null) output.append("TocOffset: ").append(tocOffset).append('\n')
+        val tocOffsetValue = headerRow["TocOffset"]
+        val itocOffsetValue = headerRow["ItocOffset"]
+        if (fileCount != null) output.append("Jumlah file tercatat: ").append(fileCount).append('\\n')
+        if (contentOffset != null) output.append("ContentOffset: ").append(contentOffset).append('\\n')
+        if (tocOffsetValue != null) output.append("TocOffset: ").append(tocOffsetValue).append('\\n')
+        if (itocOffsetValue != null) output.append("ItocOffset: ").append(itocOffsetValue).append('\\n')
 
-        val tocTable = findCpkToc(channel, cpkPayloadStart + cpkPayloadLength, fileSize)
+        val tocOffset = tocOffsetValue?.toString()?.toLongOrNull()
+        val tocTable = if (tocOffset != null && tocOffset >= 0L &&
+            tocOffset <= fileSize - 16L) {
+            val tocHeader = readBytes(channel, tocOffset, 16)
+            val tocSignature = ascii(tocHeader, 0, 4)
+            if (tocSignature == "TOC ") {
+                val tocPacketSize = u64le(tocHeader, 8)
+                if (tocPacketSize > 0L && tocPacketSize <= MAX_UTF_TABLE_BYTES.toLong() &&
+                    tocOffset + 16L + tocPacketSize <= fileSize) {
+                    parseUtfAt(channel, tocOffset + 16L, tocPacketSize)
+                } else null
+            } else null
+        } else null
+
         if (tocTable != null) {
-            output.append("\nTabel TOC: ").append(tocTable.name).append('\n')
-            output.append("Entri pada TOC: ").append(tocTable.rowCount).append('\n')
+            output.append("\\nTabel TOC: ").append(tocTable.name).append('\\n')
+            output.append("Entri pada TOC: ").append(tocTable.rowCount).append('\\n')
             output.append("Kolom penting: ")
                 .append(tocTable.columns.filter {
                     it.name in setOf("DirName", "FileName", "FileSize", "ExtractSize", "FileOffset")
                 }.joinToString(", ") { it.name })
-                .append('\n')
-            output.append("Contoh entri:\n")
+                .append('\\n')
+            output.append("Contoh entri (maksimum $MAX_CPK_SAMPLE_ROWS):\\n")
             for ((index, row) in tocTable.rows.withIndex()) {
                 val directory = row["DirName"]?.toString().orEmpty()
                 val name = row["FileName"]?.toString().orEmpty()
                 val path = listOf(directory.trim('/'), name.trim('/'))
                     .filter { it.isNotEmpty() }
                     .joinToString("/")
-                val size = row["FileSize"]?.toString() ?: "?"
-                val unpacked = row["ExtractSize"]?.toString() ?: "?"
-                val offset = row["FileOffset"]?.toString() ?: "?"
                 output.append(index + 1).append(". ")
                     .append(path.ifBlank { "(nama tidak tersedia)" })
-                    .append(" | file=").append(size)
-                    .append(" | extract=").append(unpacked)
-                    .append(" | offset=").append(offset)
-                    .append('\n')
+                    .append(" | file=").append(row["FileSize"] ?: "?")
+                    .append(" | extract=").append(row["ExtractSize"] ?: "?")
+                    .append(" | offset=").append(row["FileOffset"] ?: "?")
+                    .append('\\n')
             }
             if (tocTable.rowCount > tocTable.rows.size) {
-                output.append("... menampilkan ")
-                    .append(tocTable.rows.size)
-                    .append(" dari ")
-                    .append(tocTable.rowCount)
-                    .append(" entri.\n")
+                output.append("... menampilkan ").append(tocTable.rows.size)
+                    .append(" dari ").append(tocTable.rowCount).append(" entri.\\n")
             }
         } else {
-            output.append("\nFrame TOC tidak ditemukan dalam area metadata awal arsip.\n")
+            output.append("\\nTOC bernama tidak tersedia atau tidak valid. ")
+                .append("Arsip mungkin memakai ITOC; pembacaan ITOC belum diimplementasikan.\\n")
         }
 
-        output.append("\nCatatan: parser ini baru membaca indeks metadata. ")
-            .append("Data CRILAYLA dan payload XFBIN belum diekstrak.")
+        output.append("\\nCatatan: parser membaca metadata secara read-only; ")
+            .append("payload file tidak diekstrak atau didekompresi.")
         return Report(displayName, output.toString(), true)
-    }
-
-    private fun findCpkToc(
-        channel: FileChannel,
-        afterCpkFrame: Long,
-        fileSize: Long
-    ): UtfTable? {
-        var offset = align16(afterCpkFrame)
-        val scanEnd = minOf(fileSize, MAX_CPK_FRAME_SCAN)
-        var framesVisited = 0
-
-        while (offset + 16L <= scanEnd && framesVisited++ < 512) {
-            val header = readBytes(channel, offset, 16)
-            if (header.all { it == 0.toByte() }) {
-                offset += 16L
-                continue
-            }
-
-            val signature = ascii(header, 0, 4)
-            when {
-                signature.startsWith("TOC") ||
-                    signature == "ITOC" ||
-                    signature == "ETOC" -> {
-                    val length = u32le(header, 4)
-                    if (length <= 0L || offset + 16L + length > fileSize) return null
-                    val table = parseUtfAt(channel, offset + 16L, length)
-                    if (signature.startsWith("TOC")) return table
-                    offset = align16(offset + 16L + length)
-                }
-
-                signature.startsWith("CPK") -> {
-                    val length = u32le(header, 4)
-                    if (length <= 0L || offset + 16L + length > fileSize) return null
-                    offset = align16(offset + 16L + length)
-                }
-
-                signature.startsWith("CRILAYLA") -> {
-                    val compressedLength = u32le(header, 12)
-                    val next = offset + 16L + compressedLength + 0x100L
-                    if (compressedLength <= 0L || next > fileSize) return null
-                    offset = align16(next)
-                }
-
-                ascii(header, 10, 6) == "(c)CRI" ||
-                    header.copyOfRange(0, 4).contentEquals(
-                        byteArrayOf(0xE5.toByte(), 0x56, 0xD1.toByte(), 0x9D.toByte())
-                    ) -> offset += 16L
-
-                else -> return null
-            }
-        }
-        return null
     }
 
     private fun inspectXfbin(channel: FileChannel, displayName: String): Report {
@@ -554,6 +512,12 @@ object RetailContainerInspector {
     private fun readBytes(channel: FileChannel, position: Long, length: Long): ByteArray {
         require(length in 0..Int.MAX_VALUE.toLong())
         return readBytes(channel, position, length.toInt())
+    }
+
+    private fun u64le(data: ByteArray, offset: Int): Long {
+        val value = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN).getLong(offset)
+        require(value >= 0L) { "Ukuran paket CPK melebihi batas integer yang didukung." }
+        return value
     }
 
     private fun u32le(data: ByteArray, offset: Int): Long {
