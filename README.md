@@ -1,10 +1,12 @@
-# Storm Revolution Launcher — Storm Engine Native 3D
+# Storm Revolution — Native Android Engine
 
-## Engine Core v0.10.0
+## Engine Core v0.12.0
 
-- Adds a direct CPK file picker for inspecting large `data.cpk`, `stage.cpk`, and other CRI archives without extracting their payloads.
-- Expands the bounded CPK TOC sample from 12 to 64 rows, while retaining metadata size limits and offset validation.
-- CPK inspection runs on a background thread and reads through Android's Storage Access Framework; the source archive is never modified.
+- Extracts `.xfbin` entries from named-TOC CRI CPK archives through Android Storage Access Framework.
+- Decompresses CRILAYLA members with output-size validation and bounded per-file/total output sizes.
+- Writes extracted data to app-private storage; the selected CPK remains read-only.
+- Adds JVM unit tests for the CRILAYLA literal-stream path and malformed sizes; CI runs those tests before packaging the APK.
+- ITOC-only archives are reported as unsupported rather than guessing their index layout.
 
 
 Standalone Android launcher with an in-progress native C++17 / ARM64 engine.
@@ -25,11 +27,11 @@ Standalone Android launcher with an in-progress native C++17 / ARM64 engine.
 - NUCC/XFBIN page/chunk map reader and bounded NUD/NUT payload extraction into app-private storage.
 - GitHub Actions compiles GLSL to SPIR-V, builds the APK and verifies ARM64 library/shader assets.
 
-The CPK reader parses the container's UTF metadata and a bounded number of TOC rows. The XFBIN reader reports index structures and chunk headers. Both are read-only and validate offsets and sizes before reading.
+The CPK reader parses UTF metadata and extracts a bounded number of named-TOC XFBIN members, decompressing CRILAYLA entries. The XFBIN reader reports index structures and extracts raw NUD/NUT payloads. All source archives are read-only and offsets/sizes are validated before reading.
 
 ## Important current limits
 
-- The CPK inspector does not extract archive payloads or decompress CRILAYLA file data.
+- CPK extraction currently supports named TOC XFBIN entries only. ITOC-only archives and non-XFBIN entries are not extracted.
 - The XFBIN extractor saves embedded NUD/NDP3 and NUT/NTP3 payloads, but does not decode vertex/index buffers, skeletons, materials, texture pixels, ANM animation, VFX, or scripts.
 - The 3D actor is generated from simple engine test geometry. It is not a Naruto character model and does not contain game artwork.
 - No game combat system, retail character assets, retail animations, audio backend, save compatibility or original gameplay code is included.
@@ -39,8 +41,8 @@ A real native game port still requires format validation against the user's actu
 
 ## Asset inspection flow
 
-1. Choose **PILIH CPK & BACA INDEKS** and select `data/sim/data.cpk` first. The inspector reads the CPK header and a bounded UTF/TOC metadata sample; it does not extract the archive.
-2. Repeat with `stage.cpk` to compare the stage archive index.
+1. Choose **PILIH CPK & BACA INDEKS** and select `data/sim/data.cpk` or `stage.cpk`.
+2. Review the TOC report, then press **EKSTRAK XFBIN DARI CPK**. Supported XFBIN entries are written to app-private storage. CRILAYLA-compressed entries are decompressed during extraction.
 
 1. Choose **PILIH FOLDER INSTALASI GAME**.
 2. Press **INVENTARIS ASET GAME**.
