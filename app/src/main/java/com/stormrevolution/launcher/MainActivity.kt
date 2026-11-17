@@ -33,6 +33,8 @@ class MainActivity : Activity() {
     private var scanInProgress = false
     private var extractionInProgress = false
     private var extractionReport = "Belum ada payload XFBIN yang diekstrak."
+    private var cpkInspectionInProgress = false
+    private var cpkInspectionReport = "Pilih data.cpk atau stage.cpk untuk membaca indeks tanpa mengekstrak arsip."
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -131,6 +133,8 @@ class MainActivity : Activity() {
             addView(label("0.9.0: tabel XFBIN, halaman, dan payload NUD/NUT dapat diekstrak ke penyimpanan privat aplikasi. Decoder mesh/tekstur dan gameplay masih dikerjakan.", 10, muted))
             addView(action(if (extractionInProgress) "MENGEKSTRAK PAYLOAD..." else "PILIH XFBIN & EKSTRAK NUD/NUT") { pickXfbin() })
             addView(label(extractionReport, 10, muted))
+            addView(action(if (cpkInspectionInProgress) "MEMBACA INDEKS CPK..." else "PILIH CPK & BACA INDEKS") { pickCpk() })
+            addView(label(cpkInspectionReport, 10, muted))
         })
         content.addView(card {
             addView(label("STATUS PROYEK", 12, orange, true))
@@ -275,6 +279,15 @@ class MainActivity : Activity() {
         startActivityForResult(intent, 23)
     }
 
+    private fun pickCpk() {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "*/*"
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+        }
+        startActivityForResult(intent, 24)
+    }
+
     private fun pickGameFolder() {
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
             addFlags(
@@ -372,6 +385,35 @@ class MainActivity : Activity() {
         }.start()
     }
 
+    private fun handleCpk(uri: Uri, data: Intent?) {
+        val fileName = resolveDisplayName(uri)
+        if (!fileName.endsWith(".cpk", ignoreCase = true)) {
+            AlertDialog.Builder(this)
+                .setTitle("Bukan file CPK")
+                .setMessage("Pilih data.cpk, stage.cpk, atau arsip lain dengan ekstensi .cpk.")
+                .setPositiveButton("OK", null).show()
+            return
+        }
+        runCatching {
+            val granted = (data?.flags ?: 0) and Intent.FLAG_GRANT_READ_URI_PERMISSION
+            if (granted != 0) contentResolver.takePersistableUriPermission(uri, granted)
+        }
+        if (cpkInspectionInProgress) return
+        cpkInspectionInProgress = true
+        cpkInspectionReport = "Membaca header CPK dan tabel UTF/TOC. Payload arsip tidak diekstrak."
+        showHome()
+        Thread {
+            val result = RetailContainerInspector.inspect(contentResolver, uri, fileName, "cpk")
+            runOnUiThread {
+                cpkInspectionInProgress = false
+                cpkInspectionReport = result.details
+                getSharedPreferences("storm_launcher", MODE_PRIVATE).edit()
+                    .putString("cpk_inspection_report", cpkInspectionReport).apply()
+                showHome()
+            }
+        }.start()
+    }
+
     private fun handleGameFolder(uri: Uri, data: Intent?) {
         runCatching {
             val granted = (data?.flags ?: 0) and Intent.FLAG_GRANT_READ_URI_PERMISSION
@@ -427,6 +469,7 @@ class MainActivity : Activity() {
             21 -> handleGameFile(uri, data)
             22 -> handleGameFolder(uri, data)
             23 -> handleXfbin(uri, data)
+            24 -> handleCpk(uri, data)
         }
     }
 
