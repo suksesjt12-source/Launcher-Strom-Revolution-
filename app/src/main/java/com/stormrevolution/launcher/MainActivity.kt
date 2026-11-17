@@ -27,6 +27,10 @@ class MainActivity : Activity() {
     private lateinit var pageHost: FrameLayout
     private var selectedName = "Belum ada file dipilih"
     private var selectedGameUri: Uri? = null
+    private var selectedFolderUri: Uri? = null
+    private var selectedFolderName = "Folder game belum dipilih"
+    private var assetScanReport = "Pilih folder instalasi game untuk mulai inventaris aset."
+    private var scanInProgress = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -113,6 +117,15 @@ class MainActivity : Activity() {
             addView(label(selectedName, 15, white, true))
             addView(action("PILIH FILE GAME (.EXE)") { pickExe() })
             addView(action("MAIN SEKARANG") { showEngineNotice() })
+        })
+        content.addView(card {
+            addView(label("FOLDER DATA GAME", 12, orange, true))
+            addView(label(selectedFolderName, 14, white, true))
+            addView(action("PILIH FOLDER INSTALASI GAME") { pickGameFolder() })
+            addView(action(if (scanInProgress) "MEMERIKSA ASET..." else "INVENTARIS ASET GAME") {
+                scanGameFolder()
+            })
+            addView(label(assetScanReport, 11, muted))
         })
         content.addView(card {
             addView(label("STATUS PROYEK", 12, orange, true))
@@ -225,6 +238,13 @@ class MainActivity : Activity() {
         selectedGameUri = preferences.getString("selected_uri", null)?.let {
             runCatching { Uri.parse(it) }.getOrNull()
         }
+        selectedFolderName = preferences.getString("selected_folder_name", null)
+            ?: "Folder game belum dipilih"
+        selectedFolderUri = preferences.getString("selected_folder_uri", null)?.let {
+            runCatching { Uri.parse(it) }.getOrNull()
+        }
+        assetScanReport = preferences.getString("asset_scan_report", null)
+            ?: "Pilih folder instalasi game untuk mulai inventaris aset."
     }
 
     private fun pickExe() {
@@ -237,6 +257,16 @@ class MainActivity : Activity() {
             )
         }
         startActivityForResult(intent, 21)
+    }
+
+    private fun pickGameFolder() {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
+            addFlags(
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                    Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
+            )
+        }
+        startActivityForResult(intent, 22)
     }
 
     /**
@@ -253,11 +283,7 @@ class MainActivity : Activity() {
                 null
             )?.use { cursor ->
                 val column = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-                if (column >= 0 && cursor.moveToFirst()) {
-                    cursor.getString(column)
-                } else {
-                    null
-                }
+                if (column >= 0 && cursor.moveToFirst()) cursor.getString(column) else null
             }
         } catch (_: Exception) {
             null
@@ -267,7 +293,6 @@ class MainActivity : Activity() {
     private fun resolveDisplayName(uri: Uri): String {
         val providerName = queryDisplayName(uri)?.trim()?.takeIf { it.isNotEmpty() }
         if (providerName != null) return providerName.substringAfterLast('/')
-
         val fallback = Uri.decode(uri.lastPathSegment.orEmpty())
             .substringAfterLast('/')
             .substringAfterLast(':')
@@ -275,38 +300,87 @@ class MainActivity : Activity() {
         return fallback.ifEmpty { "File dipilih" }
     }
 
-    @Deprecated("Deprecated by Android; retained for broad device compatibility")
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode != 21 || resultCode != RESULT_OK) return
-
-        val uri = data?.data ?: return
+    private fun handleGameFile(uri: Uri, data: Intent?) {
         val fileName = resolveDisplayName(uri)
-
-        // Accept any Windows executable filename; it need not be exactly NSUNSR.exe.
-        if (fileName.endsWith(".exe", ignoreCase = true)) {
-            selectedName = fileName
-            selectedGameUri = uri
-            runCatching {
-                contentResolver.takePersistableUriPermission(
-                    uri, Intent.FLAG_GRANT_READ_URI_PERMISSION
-                )
-            }
-            getSharedPreferences("storm_launcher", MODE_PRIVATE).edit()
-                .putString("selected_name", selectedName)
-                .putString("selected_uri", uri.toString())
-                .apply()
-            showHome()
-        } else {
+        if (!fileName.endsWith(".exe", ignoreCase = true)) {
             AlertDialog.Builder(this)
                 .setTitle("Format file tidak didukung")
                 .setMessage(
-                    "File yang dipilih: $fileName\\n" +
-                        "Pilih executable Windows dengan ekstensi .exe. " +
-                        "Nama file tidak harus persis NSUNSR.exe."
+                    "File yang dipilih: $fileName\n" +
+                        "Pilih executable Windows berakhiran .exe."
                 )
                 .setPositiveButton("OK", null)
                 .show()
+            return
+        }
+
+        selectedName = fileName
+        selectedGameUri = uri
+        runCatching {
+            val granted = (data?.flags ?: 0) and Intent.FLAG_GRANT_READ_URI_PERMISSION
+            if (granted != 0) contentResolver.takePersistableUriPermission(uri, granted)
+        }
+        getSharedPreferences("storm_launcher", MODE_PRIVATE).edit()
+            .putString("selected_name", selectedName)
+            .putString("selected_uri", uri.toString())
+            .apply()
+        showHome()
+    }
+
+    private fun handleGameFolder(uri: Uri, data: Intent?) {
+        runCatching {
+            val granted = (data?.flags ?: 0) and Intent.FLAG_GRANT_READ_URI_PERMISSION
+            if (granted != 0) contentResolver.takePersistableUriPermission(uri, granted)
+        }
+        selectedFolderUri = uri
+        selectedFolderName = runCatching {
+            android.provider.DocumentsContract.getTreeDocumentId(uri)
+                .substringAfter(':')
+                .substringAfterLast('/')
+                .ifBlank { "Folder game dipilih" }
+        }.getOrDefault("Folder game dipilih")
+        assetScanReport = "Folder dipilih. Jalankan inventaris untuk memeriksa file game."
+        getSharedPreferences("storm_launcher", MODE_PRIVATE).edit()
+            .putString("selected_folder_name", selectedFolderName)
+            .putString("selected_folder_uri", uri.toString())
+            .putString("asset_scan_report", assetScanReport)
+            .apply()
+        showHome()
+    }
+
+    private fun scanGameFolder() {
+        val folderUri = selectedFolderUri
+        if (folderUri == null) {
+            pickGameFolder()
+            return
+        }
+        if (scanInProgress) return
+
+        scanInProgress = true
+        assetScanReport = "Sedang memeriksa daftar file dan signature awal..."
+        showHome()
+
+        Thread {
+            val result = GameAssetScanner.scan(contentResolver, folderUri)
+            runOnUiThread {
+                scanInProgress = false
+                assetScanReport = result.report
+                getSharedPreferences("storm_launcher", MODE_PRIVATE).edit()
+                    .putString("asset_scan_report", assetScanReport)
+                    .apply()
+                showHome()
+            }
+        }.start()
+    }
+
+    @Deprecated("Deprecated by Android; retained for broad device compatibility")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (resultCode != RESULT_OK) return
+        val uri = data?.data ?: return
+        when (requestCode) {
+            21 -> handleGameFile(uri, data)
+            22 -> handleGameFolder(uri, data)
         }
     }
 
