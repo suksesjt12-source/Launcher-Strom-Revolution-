@@ -268,13 +268,16 @@ class MainActivity : Activity() {
 
     private fun showLibrary() {
         val content = page()
-        content.addView(label("PUSTAKA GAME", 24, white, true))
-        content.addView(label("Pilih file game untuk dicatat di launcher.", 13, muted))
+        content.addView(label("FOLDER GAME", 24, white, true))
+        content.addView(label("Satu folder instalasi menjadi sumber pemindaian dan impor aset.", 13, muted))
         content.addView(card {
-            addView(label("Naruto Shippuden: Ultimate Ninja Storm Revolution", 16, white, true))
-            addView(label(selectedName, 12, muted))
-            addView(action("PILIH FILE") { pickExe() })
-            addView(action("MAIN SEKARANG") { showEngineNotice() })
+            addView(label("Folder terpilih", 12, orange, true))
+            addView(label(selectedFolderName, 14, white, true))
+            addView(action("PILIH FOLDER INSTALASI") { pickGameFolder() })
+            addView(action(if (scanInProgress) "MEMINDAI & MENGIMPOR..." else "IMPOR ASET OTOMATIS") {
+                scanGameFolder()
+            })
+            addView(label(assetScanReport, 11, muted))
         })
         show(content)
     }
@@ -300,7 +303,7 @@ class MainActivity : Activity() {
         content.addView(label("TENTANG", 24, white, true))
         content.addView(card {
             addView(label("STORM REVOLUTION LAUNCHER", 17, white, true))
-            addView(label("Versi 0.12.0 · CPK XFBIN + CRILAYLA extractor", 12, orange, true))
+            addView(label("Versi 0.13.0 · Automatic Folder Asset Import", 12, orange, true))
             addView(label("Engine native ARM64 dengan render pipeline 3D awal. Belum memuat runtime khusus Naruto atau menjalankan EXE Windows.", 13, muted))
         })
         show(content)
