@@ -181,7 +181,8 @@ object RetailContainerInspector {
         val saved = ArrayList<String>()
 
         for (rowIndex in 0 until rowsToScan.toInt()) {
-            val row = toc.rows.getOrNull(rowIndex) ?: run {
+            val row = toc.rows.getOrNull(rowIndex)
+            if (row == null) {
                 failed++
                 continue
             }
