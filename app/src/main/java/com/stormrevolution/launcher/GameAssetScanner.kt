@@ -73,7 +73,7 @@ object GameAssetScanner {
             DocumentsContract.getTreeDocumentId(treeUri)
         } catch (error: Exception) {
             return Result(
-                report = "GAGAL MEMBACA FOLDER\\nURI folder tidak dapat dibaca: \${error.message ?: "akses ditolak"}",
+                report = "GAGAL MEMBACA FOLDER\nURI folder tidak dapat dibaca: ${error.message ?: "akses ditolak"}",
                 files = 0,
                 directories = 0,
                 bytesKnown = 0,
@@ -101,7 +101,7 @@ object GameAssetScanner {
             } catch (_: Exception) {
                 unreadableFolders++
                 if (errors.size < 4) errors.add(
-                    "\${folder.relativePath.ifBlank { rootName }}: URI anak folder tidak dapat dibangun"
+                    "${folder.relativePath.ifBlank { rootName }}: URI anak folder tidak dapat dibangun"
                 )
                 continue
             }
@@ -122,7 +122,7 @@ object GameAssetScanner {
                     if (idColumn < 0 || nameColumn < 0 || mimeColumn < 0) {
                         unreadableFolders++
                         if (errors.size < 4) errors.add(
-                            "\${folder.relativePath.ifBlank { rootName }}: metadata tidak lengkap"
+                            "${folder.relativePath.ifBlank { rootName }}: metadata tidak lengkap"
                         )
                         return@use
                     }
@@ -190,18 +190,18 @@ object GameAssetScanner {
                 } ?: run {
                     unreadableFolders++
                     if (errors.size < 4) errors.add(
-                        "\${folder.relativePath.ifBlank { rootName }}: penyedia file tidak mengembalikan daftar"
+                        "${folder.relativePath.ifBlank { rootName }}: penyedia file tidak mengembalikan daftar"
                     )
                 }
             } catch (_: SecurityException) {
                 unreadableFolders++
                 if (errors.size < 4) errors.add(
-                    "\${folder.relativePath.ifBlank { rootName }}: izin baca tidak tersedia"
+                    "${folder.relativePath.ifBlank { rootName }}: izin baca tidak tersedia"
                 )
             } catch (error: Exception) {
                 unreadableFolders++
                 if (errors.size < 4) errors.add(
-                    "\${folder.relativePath.ifBlank { rootName }}: \${error.javaClass.simpleName}"
+                    "${folder.relativePath.ifBlank { rootName }}: ${error.javaClass.simpleName}"
                 )
             }
         }
@@ -266,8 +266,8 @@ object GameAssetScanner {
             xfbinPayloadBytes += result.outputBytes
             if (xfbinReports.size < 8) {
                 xfbinReports.add(candidate.path + ": " +
-                    "model \${result.models}, tekstur \${result.textures}, " +
-                    "chunk \${result.chunks}, halaman \${result.pages}")
+                    "model ${result.models}, tekstur ${result.textures}, " +
+                    "chunk ${result.chunks}, halaman ${result.pages}")
             }
         }
 
@@ -283,94 +283,94 @@ object GameAssetScanner {
             xfbinPayloadBytes += result.outputBytes
             if (xfbinReports.size < 8) {
                 xfbinReports.add(candidate.path + ": " +
-                    "model \${result.models}, tekstur \${result.textures}, " +
-                    "chunk \${result.chunks}, halaman \${result.pages}")
+                    "model ${result.models}, tekstur ${result.textures}, " +
+                    "chunk ${result.chunks}, halaman ${result.pages}")
             }
         }
 
         val output = StringBuilder()
-        output.append("IMPOR OTOMATIS FOLDER GAME\\n")
-        output.append("Folder: ").append(rootName).append('\\n')
-        output.append("Direktori: ").append(directoryCount).append('\\n')
-        output.append("File: ").append(fileCount).append('\\n')
-        output.append("Ukuran total terdeteksi: ").append(formatBytes(knownBytes)).append('\\n')
-        output.append("Folder gagal dibaca: ").append(unreadableFolders).append('\\n')
+        output.append("IMPOR OTOMATIS FOLDER GAME\n")
+        output.append("Folder: ").append(rootName).append('\n')
+        output.append("Direktori: ").append(directoryCount).append('\n')
+        output.append("File: ").append(fileCount).append('\n')
+        output.append("Ukuran total terdeteksi: ").append(formatBytes(knownBytes)).append('\n')
+        output.append("Folder gagal dibaca: ").append(unreadableFolders).append('\n')
         if (truncated) {
             output.append("Peringatan: pemindaian dibatasi maksimal ")
                 .append(MAX_ENTRIES).append(" entri dan kedalaman ")
-                .append(MAX_DEPTH).append(" folder.\\n")
+                .append(MAX_DEPTH).append(" folder.\n")
         }
 
-        output.append("\\nHASIL IMPOR ASET\\n")
-        output.append("Arsip CPK ditemukan: ").append(cpkCandidates.size).append('\\n')
-        output.append("Arsip CPK diproses: ").append(cpkReports.size).append('\\n')
-        output.append("XFBIN ditemukan di luar CPK: ").append(looseXfbins.size).append('\\n')
-        output.append("XFBIN dikeluarkan dari CPK: ").append(cpkFiles).append('\\n')
-        output.append("XFBIN dibaca: ").append(parsedXfbins).append('\\n')
-        output.append("Model NUD diekstrak: ").append(modelCount).append('\\n')
-        output.append("Tekstur NUT diekstrak: ").append(textureCount).append('\\n')
+        output.append("\nHASIL IMPOR ASET\n")
+        output.append("Arsip CPK ditemukan: ").append(cpkCandidates.size).append('\n')
+        output.append("Arsip CPK diproses: ").append(cpkReports.size).append('\n')
+        output.append("XFBIN ditemukan di luar CPK: ").append(looseXfbins.size).append('\n')
+        output.append("XFBIN dikeluarkan dari CPK: ").append(cpkFiles).append('\n')
+        output.append("XFBIN dibaca: ").append(parsedXfbins).append('\n')
+        output.append("Model NUD diekstrak: ").append(modelCount).append('\n')
+        output.append("Tekstur NUT diekstrak: ").append(textureCount).append('\n')
         output.append("Total data hasil impor: ")
-            .append(formatBytes(cpkBytes + xfbinPayloadBytes)).append('\\n')
+            .append(formatBytes(cpkBytes + xfbinPayloadBytes)).append('\n')
         output.append("Batas impor otomatis: ")
-            .append(formatBytes(MAX_TOTAL_IMPORT_BYTES)).append('\\n')
+            .append(formatBytes(MAX_TOTAL_IMPORT_BYTES)).append('\n')
 
         if (cpkReports.isNotEmpty()) {
-            output.append("\\nARSIP CPK\\n")
+            output.append("\nARSIP CPK\n")
             cpkReports.forEach { report ->
                 output.append("- ").append(report.title).append(": ")
                     .append(report.extractedFiles).append(" XFBIN, ")
-                    .append(formatBytes(report.outputBytes)).append('\\n')
+                    .append(formatBytes(report.outputBytes)).append('\n')
                 if (!report.recognized || report.extractedFiles == 0) {
                     output.append("  ").append(report.details.lineSequence().take(3).joinToString(" "))
-                        .append('\\n')
+                        .append('\n')
                 }
             }
         }
 
         if (xfbinReports.isNotEmpty()) {
-            output.append("\\nXFBIN YANG DIPROSES\\n")
-            xfbinReports.forEach { output.append("- ").append(it).append('\\n') }
+            output.append("\nXFBIN YANG DIPROSES\n")
+            xfbinReports.forEach { output.append("- ").append(it).append('\n') }
             if (parsedXfbins > xfbinReports.size) {
                 output.append("... ").append(parsedXfbins - xfbinReports.size)
-                    .append(" file lain diproses.\\n")
+                    .append(" file lain diproses.\n")
             }
         }
 
         if (cpkCandidates.isEmpty() && looseXfbins.isEmpty()) {
-            output.append("\\nTidak ditemukan arsip CPK atau file XFBIN di folder ini.")
+            output.append("\nTidak ditemukan arsip CPK atau file XFBIN di folder ini.")
         } else if (cpkFiles == 0 && modelCount == 0 && textureCount == 0) {
-            output.append("\\nTidak ada payload model/tekstur yang berhasil diimpor. ")
+            output.append("\nTidak ada payload model/tekstur yang berhasil diimpor. ")
                 .append("Arsip mungkin memakai ITOC atau varian format yang belum didukung.")
         }
 
-        output.append("\\nPEMERIKSAAN FILE\\n")
-        output.append("Ekstensi terbanyak:\\n")
+        output.append("\nPEMERIKSAAN FILE\n")
+        output.append("Ekstensi terbanyak:\n")
         extensionCounts.entries
             .sortedWith(compareByDescending<Map.Entry<String, Int>> { it.value }.thenBy { it.key })
             .take(14)
             .forEach { entry ->
                 val label = if (entry.key == "[tanpa ekstensi]") entry.key else "." + entry.key
-                output.append(label).append(" : ").append(entry.value).append('\\n')
+                output.append(label).append(" : ").append(entry.value).append('\n')
             }
 
-        output.append("\\nSAMPEL FILE & HEADER (maks. ").append(MAX_SAMPLES).append(")\\n")
+        output.append("\nSAMPEL FILE & HEADER (maks. ").append(MAX_SAMPLES).append(")\n")
         if (samples.isEmpty()) {
-            output.append("Tidak ada sampel file untuk diperiksa.\\n")
+            output.append("Tidak ada sampel file untuk diperiksa.\n")
         } else {
             samples.forEach { sample ->
                 output.append(sample.path).append(" | ")
                     .append(if (sample.size >= 0L) formatBytes(sample.size) else "ukuran tidak diketahui")
                     .append(" | ").append(sample.extension)
-                    .append(" | ").append(sample.header).append('\\n')
+                    .append(" | ").append(sample.header).append('\n')
             }
         }
 
         if (errors.isNotEmpty()) {
-            output.append("\\nCATATAN AKSES\\n")
-            errors.forEach { output.append("- ").append(it).append('\\n') }
+            output.append("\nCATATAN AKSES\n")
+            errors.forEach { output.append("- ").append(it).append('\n') }
         }
 
-        output.append("\\nCatatan: pemilihan folder sudah mengimpor aset yang formatnya didukung. ")
+        output.append("\nCatatan: pemilihan folder sudah mengimpor aset yang formatnya didukung. ")
             .append("Aset NUD/NUT masih berupa payload; decoder mesh, tekstur GPU, skeleton, ")
             .append("animasi, stage, dan runtime gameplay belum terhubung ke engine.")
         return Result(output.toString(), fileCount, directoryCount, knownBytes, truncated)
@@ -452,7 +452,7 @@ object GameAssetScanner {
         } catch (_: SecurityException) {
             "izin baca header ditolak"
         } catch (error: Exception) {
-            "gagal baca header: \${error.javaClass.simpleName}"
+            "gagal baca header: ${error.javaClass.simpleName}"
         }
     }
 
