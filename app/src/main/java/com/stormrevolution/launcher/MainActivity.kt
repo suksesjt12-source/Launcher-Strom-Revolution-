@@ -256,6 +256,8 @@ class MainActivity : Activity() {
             ?: "Pilih folder instalasi game untuk mulai inventaris aset."
         extractionReport = preferences.getString("extraction_report", null)
             ?: "Belum ada payload XFBIN yang diekstrak."
+        cpkInspectionReport = preferences.getString("cpk_inspection_report", null)
+            ?: "Pilih data.cpk atau stage.cpk untuk membaca indeks tanpa mengekstrak arsip."
     }
 
     private fun pickExe() {
