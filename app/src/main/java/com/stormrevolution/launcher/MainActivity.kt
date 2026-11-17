@@ -1,7 +1,6 @@
 package com.stormrevolution.launcher
 
 import android.app.Activity
-import android.app.AlertDialog
 import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.content.res.Configuration
@@ -9,7 +8,6 @@ import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
-import android.provider.OpenableColumns
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -30,8 +28,6 @@ class MainActivity : Activity() {
     private val white = Color.rgb(245, 246, 248)
     private val muted = Color.rgb(157, 166, 181)
     private lateinit var pageHost: FrameLayout
-    private var selectedName = "Belum ada file dipilih"
-    private var selectedGameUri: Uri? = null
     private var selectedFolderUri: Uri? = null
     private var selectedFolderName = "Folder game belum dipilih"
     private var assetScanReport = "Pilih folder instalasi game untuk mulai inventaris aset."
@@ -358,11 +354,6 @@ class MainActivity : Activity() {
 
     private fun restoreSelectedGame() {
         val preferences = getSharedPreferences("storm_launcher", MODE_PRIVATE)
-        selectedName = preferences.getString("selected_name", null)
-            ?: "Belum ada file dipilih"
-        selectedGameUri = preferences.getString("selected_uri", null)?.let {
-            runCatching { Uri.parse(it) }.getOrNull()
-        }
         selectedFolderName = preferences.getString("selected_folder_name", null)
             ?: "Folder game belum dipilih"
         selectedFolderUri = preferences.getString("selected_folder_uri", null)?.let {
@@ -370,36 +361,6 @@ class MainActivity : Activity() {
         }
         assetScanReport = preferences.getString("asset_scan_report", null)
             ?: "Pilih folder instalasi game untuk mulai inventaris aset."
-    }
-
-    private fun pickExe() {
-        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-            addCategory(Intent.CATEGORY_OPENABLE)
-            type = "*/*"
-            addFlags(
-                Intent.FLAG_GRANT_READ_URI_PERMISSION or
-                    Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
-            )
-        }
-        startActivityForResult(intent, 21)
-    }
-
-    private fun pickXfbin() {
-        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-            addCategory(Intent.CATEGORY_OPENABLE)
-            type = "*/*"
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
-        }
-        startActivityForResult(intent, 23)
-    }
-
-    private fun pickCpk() {
-        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-            addCategory(Intent.CATEGORY_OPENABLE)
-            type = "*/*"
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
-        }
-        startActivityForResult(intent, 24)
     }
 
     private fun pickGameFolder() {
@@ -410,155 +371,6 @@ class MainActivity : Activity() {
             )
         }
         startActivityForResult(intent, 22)
-    }
-
-    /**
-     * A Storage Access Framework document ID is not always the real filename.
-     * Ask the provider for DISPLAY_NAME instead of inspecting lastPathSegment.
-     */
-    private fun queryDisplayName(uri: Uri): String? {
-        return try {
-            contentResolver.query(
-                uri,
-                arrayOf(OpenableColumns.DISPLAY_NAME),
-                null,
-                null,
-                null
-            )?.use { cursor ->
-                val column = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-                if (column >= 0 && cursor.moveToFirst()) cursor.getString(column) else null
-            }
-        } catch (_: Exception) {
-            null
-        }
-    }
-
-    private fun resolveDisplayName(uri: Uri): String {
-        val providerName = queryDisplayName(uri)?.trim()?.takeIf { it.isNotEmpty() }
-        if (providerName != null) return providerName.substringAfterLast('/')
-        val fallback = Uri.decode(uri.lastPathSegment.orEmpty())
-            .substringAfterLast('/')
-            .substringAfterLast(':')
-            .trim()
-        return fallback.ifEmpty { "File dipilih" }
-    }
-
-    private fun handleGameFile(uri: Uri, data: Intent?) {
-        val fileName = resolveDisplayName(uri)
-        if (!fileName.endsWith(".exe", ignoreCase = true)) {
-            AlertDialog.Builder(this)
-                .setTitle("Format file tidak didukung")
-                .setMessage(
-                    "File yang dipilih: $fileName\n" +
-                        "Pilih executable Windows berakhiran .exe."
-                )
-                .setPositiveButton("OK", null)
-                .show()
-            return
-        }
-
-        selectedName = fileName
-        selectedGameUri = uri
-        runCatching {
-            val granted = (data?.flags ?: 0) and Intent.FLAG_GRANT_READ_URI_PERMISSION
-            if (granted != 0) contentResolver.takePersistableUriPermission(uri, granted)
-        }
-        getSharedPreferences("storm_launcher", MODE_PRIVATE).edit()
-            .putString("selected_name", selectedName)
-            .putString("selected_uri", uri.toString())
-            .apply()
-        showHome()
-    }
-
-    private fun handleXfbin(uri: Uri, data: Intent?) {
-        val fileName = resolveDisplayName(uri)
-        if (!fileName.endsWith(".xfbin", ignoreCase = true)) {
-            AlertDialog.Builder(this)
-                .setTitle("Bukan file XFBIN")
-                .setMessage("Pilih satu file dengan ekstensi .xfbin. File lain belum dapat diproses oleh extractor ini.")
-                .setPositiveButton("OK", null).show()
-            return
-        }
-        runCatching {
-            val granted = (data?.flags ?: 0) and Intent.FLAG_GRANT_READ_URI_PERMISSION
-            if (granted != 0) contentResolver.takePersistableUriPermission(uri, granted)
-        }
-        if (extractionInProgress) return
-        extractionInProgress = true
-        extractionReport = "Membaca tabel XFBIN dan mengekstrak payload NUD/NUT..."
-        showHome()
-        Thread {
-            val result = XfbinPayloadExtractor.extract(contentResolver, uri, fileName, filesDir)
-            runOnUiThread {
-                extractionInProgress = false
-                extractionReport = result.report
-                getSharedPreferences("storm_launcher", MODE_PRIVATE).edit()
-                    .putString("extraction_report", extractionReport).apply()
-                showHome()
-            }
-        }.start()
-    }
-
-    private fun handleCpk(uri: Uri, data: Intent?) {
-        val fileName = resolveDisplayName(uri)
-        if (!fileName.endsWith(".cpk", ignoreCase = true)) {
-            AlertDialog.Builder(this)
-                .setTitle("Bukan file CPK")
-                .setMessage("Pilih data.cpk, stage.cpk, atau arsip lain dengan ekstensi .cpk.")
-                .setPositiveButton("OK", null).show()
-            return
-        }
-        runCatching {
-            val granted = (data?.flags ?: 0) and Intent.FLAG_GRANT_READ_URI_PERMISSION
-            if (granted != 0) contentResolver.takePersistableUriPermission(uri, granted)
-        }
-        selectedCpkUri = uri
-        selectedCpkName = fileName
-        getSharedPreferences("storm_launcher", MODE_PRIVATE).edit()
-            .putString("selected_cpk_uri", uri.toString())
-            .putString("selected_cpk_name", selectedCpkName)
-            .apply()
-        if (cpkInspectionInProgress) return
-        cpkInspectionInProgress = true
-        cpkInspectionReport = "Membaca header CPK dan tabel UTF/TOC."
-        showHome()
-        Thread {
-            val result = RetailContainerInspector.inspect(contentResolver, uri, fileName, "cpk")
-            runOnUiThread {
-                cpkInspectionInProgress = false
-                cpkInspectionReport = result.details
-                getSharedPreferences("storm_launcher", MODE_PRIVATE).edit()
-                    .putString("cpk_inspection_report", cpkInspectionReport).apply()
-                showHome()
-            }
-        }.start()
-    }
-
-    private fun extractCpkXfbins() {
-        val uri = selectedCpkUri
-        if (uri == null) {
-            pickCpk()
-            return
-        }
-        if (cpkExtractionInProgress) return
-
-        cpkExtractionInProgress = true
-        cpkExtractionReport = "Membaca TOC dan mengekstrak entri XFBIN..."
-        showHome()
-
-        Thread {
-            val result = RetailContainerInspector.extractXfbinsFromCpk(
-                contentResolver, uri, selectedCpkName, filesDir
-            )
-            runOnUiThread {
-                cpkExtractionInProgress = false
-                cpkExtractionReport = result.details
-                getSharedPreferences("storm_launcher", MODE_PRIVATE).edit()
-                    .putString("cpk_extraction_report", cpkExtractionReport)
-                    .apply()
-                showHome()
-            }
-        }.start()
     }
 
     private fun handleGameFolder(uri: Uri, data: Intent?) {
@@ -613,25 +425,7 @@ class MainActivity : Activity() {
         super.onActivityResult(requestCode, resultCode, data)
         if (resultCode != RESULT_OK) return
         val uri = data?.data ?: return
-        when (requestCode) {
-            21 -> handleGameFile(uri, data)
-            22 -> handleGameFolder(uri, data)
-            23 -> handleXfbin(uri, data)
-            24 -> handleCpk(uri, data)
-        }
-    }
-
-    private fun showEngineNotice() {
-        AlertDialog.Builder(this)
-            .setTitle("Engine game native belum tersedia")
-            .setMessage(
-                if (selectedGameUri == null)
-                    "Pilih file executable game (.exe) terlebih dahulu. Preview Vulkan 3D hanya menguji mesin dasar; belum ada engine game Naruto native Android."
-                else
-                    "$selectedName sudah dipilih dan tersimpan. File EXE Windows tidak dapat dijalankan langsung oleh Android. Port ARM64 native masih diperlukan."
-            )
-            .setPositiveButton("MENGERTI", null)
-            .show()
+        if (requestCode == 22) handleGameFolder(uri, data)
     }
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
