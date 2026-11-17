@@ -39,7 +39,11 @@ class MainActivity : Activity() {
     private var extractionInProgress = false
     private var extractionReport = "Belum ada payload XFBIN yang diekstrak."
     private var cpkInspectionInProgress = false
-    private var cpkInspectionReport = "Pilih data.cpk atau stage.cpk untuk membaca indeks tanpa mengekstrak arsip."
+    private var cpkInspectionReport = "Pilih data.cpk atau stage.cpk untuk membaca indeks arsip."
+    private var selectedCpkUri: Uri? = null
+    private var selectedCpkName = "Belum ada CPK dipilih"
+    private var cpkExtractionInProgress = false
+    private var cpkExtractionReport = "Belum ada XFBIN yang diekstrak dari CPK."
     private var battleMode = false
     private var hudText: TextView? = null
     private val hudHandler = Handler(Looper.getMainLooper())
@@ -136,7 +140,6 @@ class MainActivity : Activity() {
             addView(label(selectedName, 15, white, true))
             addView(action("PILIH FILE GAME (.EXE)") { pickExe() })
             addView(action("UJI PERTARUNGAN 1 VS 1 (PROTOTIPE)") { showBattleScreen() })
-            addView(action("UJI PERTARUNGAN 1 VS 1 (PROTOTIPE)") { showBattleScreen() })
         })
         content.addView(card {
             addView(label("FOLDER DATA GAME", 12, orange, true))
@@ -146,11 +149,14 @@ class MainActivity : Activity() {
                 scanGameFolder()
             })
             addView(label(assetScanReport, 11, muted))
-            addView(label("0.9.0: tabel XFBIN, halaman, dan payload NUD/NUT dapat diekstrak ke penyimpanan privat aplikasi. Decoder mesh/tekstur dan gameplay masih dikerjakan.", 10, muted))
+            addView(label("0.12.0: ekstraksi XFBIN dari CPK bernama-TOC dan dekompresi CRILAYLA. Decoder model 3D dan animasi belum selesai.", 10, muted))
             addView(action(if (extractionInProgress) "MENGEKSTRAK PAYLOAD..." else "PILIH XFBIN & EKSTRAK NUD/NUT") { pickXfbin() })
             addView(label(extractionReport, 10, muted))
             addView(action(if (cpkInspectionInProgress) "MEMBACA INDEKS CPK..." else "PILIH CPK & BACA INDEKS") { pickCpk() })
+            addView(label("CPK aktif: $selectedCpkName", 10, muted))
             addView(label(cpkInspectionReport, 10, muted))
+            addView(action(if (cpkExtractionInProgress) "MENGEKSTRAK XFBIN..." else "EKSTRAK XFBIN DARI CPK") { extractCpkXfbins() })
+            addView(label(cpkExtractionReport, 10, muted))
         })
         content.addView(card {
             addView(label("STATUS PROYEK", 12, orange, true))
@@ -319,7 +325,7 @@ class MainActivity : Activity() {
         content.addView(label("TENTANG", 24, white, true))
         content.addView(card {
             addView(label("STORM REVOLUTION LAUNCHER", 17, white, true))
-            addView(label("Versi 0.9.0 · XFBIN Model/Texture Payload Extractor", 12, orange, true))
+            addView(label("Versi 0.12.0 · CPK XFBIN + CRILAYLA extractor", 12, orange, true))
             addView(label("Engine native ARM64 dengan render pipeline 3D awal. Belum memuat runtime khusus Naruto atau menjalankan EXE Windows.", 13, muted))
         })
         show(content)
@@ -389,7 +395,14 @@ class MainActivity : Activity() {
         extractionReport = preferences.getString("extraction_report", null)
             ?: "Belum ada payload XFBIN yang diekstrak."
         cpkInspectionReport = preferences.getString("cpk_inspection_report", null)
-            ?: "Pilih data.cpk atau stage.cpk untuk membaca indeks tanpa mengekstrak arsip."
+            ?: "Pilih data.cpk atau stage.cpk untuk membaca indeks arsip."
+        selectedCpkUri = preferences.getString("selected_cpk_uri", null)?.let {
+            runCatching { Uri.parse(it) }.getOrNull()
+        }
+        selectedCpkName = preferences.getString("selected_cpk_name", null)
+            ?: "Belum ada CPK dipilih"
+        cpkExtractionReport = preferences.getString("cpk_extraction_report", null)
+            ?: "Belum ada XFBIN yang diekstrak dari CPK."
     }
 
     private fun pickExe() {
@@ -532,9 +545,15 @@ class MainActivity : Activity() {
             val granted = (data?.flags ?: 0) and Intent.FLAG_GRANT_READ_URI_PERMISSION
             if (granted != 0) contentResolver.takePersistableUriPermission(uri, granted)
         }
+        selectedCpkUri = uri
+        selectedCpkName = fileName
+        getSharedPreferences("storm_launcher", MODE_PRIVATE).edit()
+            .putString("selected_cpk_uri", uri.toString())
+            .putString("selected_cpk_name", selectedCpkName)
+            .apply()
         if (cpkInspectionInProgress) return
         cpkInspectionInProgress = true
-        cpkInspectionReport = "Membaca header CPK dan tabel UTF/TOC. Payload arsip tidak diekstrak."
+        cpkInspectionReport = "Membaca header CPK dan tabel UTF/TOC."
         showHome()
         Thread {
             val result = RetailContainerInspector.inspect(contentResolver, uri, fileName, "cpk")
@@ -543,6 +562,33 @@ class MainActivity : Activity() {
                 cpkInspectionReport = result.details
                 getSharedPreferences("storm_launcher", MODE_PRIVATE).edit()
                     .putString("cpk_inspection_report", cpkInspectionReport).apply()
+                showHome()
+            }
+        }.start()
+    }
+
+    private fun extractCpkXfbins() {
+        val uri = selectedCpkUri
+        if (uri == null) {
+            pickCpk()
+            return
+        }
+        if (cpkExtractionInProgress) return
+
+        cpkExtractionInProgress = true
+        cpkExtractionReport = "Membaca TOC dan mengekstrak entri XFBIN..."
+        showHome()
+
+        Thread {
+            val result = RetailContainerInspector.extractXfbinsFromCpk(
+                contentResolver, uri, selectedCpkName, filesDir
+            )
+            runOnUiThread {
+                cpkExtractionInProgress = false
+                cpkExtractionReport = result.details
+                getSharedPreferences("storm_launcher", MODE_PRIVATE).edit()
+                    .putString("cpk_extraction_report", cpkExtractionReport)
+                    .apply()
                 showHome()
             }
         }.start()
