@@ -266,36 +266,43 @@ object RetailContainerInspector {
         }
 
         val report = StringBuilder()
-        report.append("EKSTRAKSI XFBIN DARI CPK\\n")
-        report.append("Arsip: ").append(displayName).append('\\n')
-        report.append("Ukuran CPK: ").append(formatBytes(archiveSize)).append('\\n')
-        report.append("Entri TOC: ").append(toc.rowCount).append('\\n')
-        report.append("Entri diperiksa: ").append(rowsToScan).append('\\n')
-        report.append("File XFBIN ditemukan: ").append(candidates).append('\\n')
-        report.append("File XFBIN diekstrak: ").append(extracted).append('\\n')
-        report.append("File CRILAYLA didekompresi: ").append(compressed).append('\\n')
-        report.append("File gagal/dilewati: ").append(failed).append('\\n')
-        report.append("Output: ").append(formatBytes(totalOutput)).append('\\n')
+        report.append("EKSTRAKSI XFBIN DARI CPK\n")
+        report.append("Arsip: ").append(displayName).append('\n')
+        report.append("Ukuran CPK: ").append(formatBytes(archiveSize)).append('\n')
+        report.append("Entri TOC: ").append(toc.rowCount).append('\n')
+        report.append("Entri diperiksa: ").append(rowsToScan).append('\n')
+        report.append("File XFBIN ditemukan: ").append(candidates).append('\n')
+        report.append("File XFBIN diekstrak: ").append(extracted).append('\n')
+        report.append("File CRILAYLA didekompresi: ").append(compressed).append('\n')
+        report.append("File gagal/dilewati: ").append(failed).append('\n')
+        report.append("Output: ").append(formatBytes(totalOutput)).append('\n')
         if (toc.rowCount > rowsToScan) {
             report.append("Peringatan: TOC melebihi batas pemeriksaan ")
-                .append(MAX_CPK_EXTRACT_ROWS).append(" entri.\\n")
+                .append(MAX_CPK_EXTRACT_ROWS).append(" entri.\n")
         }
-        report.append("Folder privat: ").append(outputRoot.absolutePath).append('\\n')
+        report.append("Folder privat: ").append(outputRoot.absolutePath).append('\n')
         if (saved.isNotEmpty()) {
-            report.append("\\nCONTOH FILE\\n")
-            saved.forEach { report.append("- ").append(it).append('\\n') }
+            report.append("\nCONTOH FILE\n")
+            saved.forEach { report.append("- ").append(it).append('\n') }
         }
         if (candidates == 0) {
-            report.append("\\nTOC bernama tidak memiliki entri .xfbin yang terdeteksi.")
+            report.append("\nTOC bernama tidak memiliki entri .xfbin yang terdeteksi.")
         }
-        report.append("\\nCatatan: XFBIN sudah dikeluarkan dari arsip, tetapi mesh, tekstur, ")
+        report.append("\nCatatan: XFBIN sudah dikeluarkan dari arsip, tetapi mesh, tekstur, ")
             .append("skeleton, dan animasi masih belum diterjemahkan ke renderer.")
         return Report(displayName, report.toString(), true)
     }
 
     private fun safeFileSegment(value: String): String =
         value.trim()
-            .replace(Regex("[\\\\/:*?\\"<>|\\u0000-\\u001F]"), "_")
+            .map { character ->
+                if (character == '/' || character == '\\' ||
+                    character == ':' || character == '*' ||
+                    character == '?' || character == '"' ||
+                    character == '<' || character == '>' ||
+                    character == '|' || character.code < 0x20) '_' else character
+            }
+            .joinToString("")
             .trim('.', ' ')
             .take(96)
             .ifBlank { "unnamed" }
