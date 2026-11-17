@@ -136,7 +136,7 @@ class MainActivity : Activity() {
             addView(label("FOLDER INSTALASI GAME", 12, orange, true))
             addView(label(selectedFolderName, 14, white, true))
             addView(action("PILIH FOLDER GAME") { pickGameFolder() })
-            addView(action(if (scanInProgress) "MEMINDAI & MENGIMPOR..." else "PINDAI FOLDER + IMPOR ASET OTOMATIS") {
+            addView(action(if (scanInProgress) "MEMINDAI & MENGIMPOR..." else "ULANGI PEMINDAIAN + IMPOR") {
                 scanGameFolder()
             })
             addView(label(assetScanReport, 11, muted))
@@ -573,13 +573,14 @@ class MainActivity : Activity() {
                 .substringAfterLast('/')
                 .ifBlank { "Folder game dipilih" }
         }.getOrDefault("Folder game dipilih")
-        assetScanReport = "Folder dipilih. Tekan PINDAI FOLDER + IMPOR ASET OTOMATIS."
+        assetScanReport = "Folder dipilih. Pemindaian dan impor aset dimulai otomatis."
         getSharedPreferences("storm_launcher", MODE_PRIVATE).edit()
             .putString("selected_folder_name", selectedFolderName)
             .putString("selected_folder_uri", uri.toString())
             .putString("asset_scan_report", assetScanReport)
             .apply()
         showHome()
+        scanGameFolder()
     }
 
     private fun scanGameFolder() {
