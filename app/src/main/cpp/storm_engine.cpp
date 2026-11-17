@@ -607,3 +607,15 @@ Java_com_stormrevolution_launcher_StormEngine_nativeStopRenderer(
     JNIEnv* /* environment */, jobject /* caller */) {
     stopRenderer();
 }
+
+extern "C"
+JNIEXPORT jboolean JNICALL
+Java_com_stormrevolution_launcher_StormEngine_nativeLoadAsset(
+    JNIEnv* env, jobject /* caller */, jstring relativePath) {
+    if (relativePath == nullptr) return JNI_FALSE;
+    const char* chars = env->GetStringUTFChars(relativePath, nullptr);
+    if (chars == nullptr) return JNI_FALSE;
+    const bool loaded = gAssetStore.loadRelative(chars);
+    env->ReleaseStringUTFChars(relativePath, chars);
+    return loaded ? JNI_TRUE : JNI_FALSE;
+}

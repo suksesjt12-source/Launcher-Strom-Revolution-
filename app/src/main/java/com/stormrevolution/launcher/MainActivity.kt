@@ -29,6 +29,7 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         window.statusBarColor = bg
         window.navigationBarColor = bg
+        StormEngine.setAssetRoot(filesDir.absolutePath)
         buildShell()
         showHome()
     }
@@ -91,14 +92,14 @@ class MainActivity : Activity() {
         content.addView(card {
             addView(label("STATUS PROYEK", 12, orange, true))
             addView(label("Launcher: aktif", 14, white))
-            addView(label("Renderer Vulkan native: surface + swapchain aktif", 13, white))
-            addView(label("Game engine Naruto native ARM64: belum tersedia", 13, muted))
+            addView(label("Storm Engine: fixed loop 60 Hz, scene/entity, touch input, asset cache", 13, white))
+            addView(label("Runtime khusus Naruto native ARM64: belum tersedia", 13, muted))
             addView(label("Tidak ada Wine, Box64, DXVK, atau Winlator.", 12, muted))
         })
         content.addView(card {
             addView(label("DIAGNOSTIK GPU VULKAN", 12, orange, true))
             addView(label(StormEngine.getVulkanReport(), 12, white))
-            addView(label("Preview di bawah ini memakai swapchain Vulkan native. Ini masih layar tes renderer, bukan grafis game.", 11, muted))
+            addView(label("Area uji input: sisi kiri analog, kanan atas lompat, kanan bawah serang. Frame masih tes Vulkan, belum grafis game.", 11, muted))
             addView(NativeVulkanSurfaceView(this@MainActivity), LinearLayout.LayoutParams(-1, dp(170)))
         })
         show(content)
@@ -138,8 +139,8 @@ class MainActivity : Activity() {
         content.addView(label("TENTANG", 24, white, true))
         content.addView(card {
             addView(label("STORM REVOLUTION LAUNCHER", 17, white, true))
-            addView(label("Versi 0.4.0 · Native Android Vulkan", 12, orange, true))
-            addView(label("Aplikasi launcher mandiri berbasis Kotlin. Proyek ini belum memuat game atau engine untuk menjalankan EXE Windows.", 13, muted))
+            addView(label("Versi 0.5.0 · Storm Engine Core", 12, orange, true))
+            addView(label("Launcher mandiri dengan engine core C++/ARM64. Belum memuat runtime khusus Naruto atau menjalankan EXE Windows.", 13, muted))
         })
         show(content)
     }

@@ -26,6 +26,11 @@ object StormEngine {
         }
     }
 
+    fun loadAsset(relativePath: String): Boolean {
+        if (!ensureLibraryLoaded()) return false
+        return try { nativeLoadAsset(relativePath) } catch (_: Exception) { false }
+    }
+
     fun getVulkanReport(): String {
         return if (!ensureLibraryLoaded()) {
             "Modul native gagal dimuat."
