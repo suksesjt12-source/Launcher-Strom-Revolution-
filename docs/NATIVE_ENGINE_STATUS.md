@@ -1,33 +1,58 @@
-# Native Engine Bootstrap — Status
+# Native Engine Status
 
-This branch now builds a small C++17 JNI library named `storm_engine` for
-`arm64-v8a`. The library initializes a Vulkan instance and enumerates Vulkan
-physical devices so the launcher can report the GPU and Vulkan API version.
+## Version 0.4.0 — Vulkan surface renderer bring-up
 
-## What this is
+The app builds an ARM64 C++17 JNI library named `storm_engine` and connects it
+to an Android `SurfaceView`.
 
-- Native Android NDK/C++ code.
-- Vulkan loader and physical-device discovery.
-- Kotlin/JNI bridge used by the launcher.
-- No Wine, Box64, DXVK, or Winlator dependency.
+The native renderer now:
+- Creates a Vulkan instance and Android surface.
+- Selects a physical device with a graphics queue that can present to the
+  Android surface and supports `VK_KHR_swapchain`.
+- Creates a swapchain, image views, render pass, framebuffers, command pool,
+  command buffer and synchronization primitives.
+- Submits a render pass that clears the swapchain image and presents it.
+- Stops and releases Vulkan objects when Android destroys the surface.
 
-## What this is not
+The preview is currently a clear-color frame, not a triangle, model, scene, or
+game renderer. Its purpose is to prove the native Android Vulkan surface and
+presentation lifecycle are connected end-to-end.
 
-- It is not the Naruto Storm Revolution game engine.
-- It does not parse or execute `NSUNSR.exe`.
-- It does not contain the game's recompilation output, game-specific renderer,
-  asset loaders, audio implementation, or input/gameplay runtime.
-- A successful APK build does not mean the game is playable.
+## Other existing native diagnostics
 
-## Required next source material
+The launcher also reports:
+- Physical GPU name and Vulkan API version.
+- Whether buffer device address is exposed as a supported device feature.
 
-The public Storm Revolution native-port repository documents an Xbox 360
-`default.xex`-based ARM64 port, but its repository says it contains
-documentation rather than the port's implementation source. The Windows
-`NSUNSR.exe` file is a different executable format and is not a drop-in input
-for that port.
+A capability result is not a performance benchmark and does not prove a game
+will run on the device.
 
-A real native game engine integration requires legally usable source code and
-the matching game-specific recompilation output/runtime, plus Vulkan renderer,
-audio, input, assets and platform integration. This bootstrap is only the
-first native diagnostic layer.
+## What is not implemented
+
+- No loading or execution of Windows `NSUNSR.exe`.
+- No game-specific ARM64 recompilation output.
+- No Storm Revolution asset/XFBIN reader.
+- No skeletal animation, materials, effects, or game scene renderer.
+- No game audio backend, controller mapping runtime, gameplay, or save system.
+
+## Executable mismatch and source requirement
+
+The previously inspected `NSUNSR.exe` is a Windows PE32 x86 executable that
+uses Direct3D 9. The public Xbox 360 native-port documentation found during
+research targets a specific PowerPC `default.xex` build instead. They are
+different binaries and are not interchangeable. The public documentation repo
+also states that it contains documentation rather than the actual engine
+implementation.
+
+A complete native port requires legally usable original source and the
+matching build system, or a clean-room reimplementation with appropriate
+rights to any assets used. The launcher does not create this source from the
+Windows executable.
+
+## Next engineering milestone
+
+Build a basic native render graph and shader pipeline after Vulkan surface
+presentation is verified on the target phone. Then implement independently
+testable platform modules (input, audio, file I/O and resource management).
+These components still do not substitute for the unavailable game-specific
+engine and assets.

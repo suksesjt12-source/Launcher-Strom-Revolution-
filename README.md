@@ -1,27 +1,39 @@
 # Storm Revolution Launcher Native
 
-Standalone Android launcher prototype built with Kotlin and Android SDK views.
+Standalone Android launcher built with Kotlin plus an ARM64 C++17 native module.
 
-## Included
-- Custom dark/orange launcher screen
-- Game library with Android document picker for selecting NSUNSR.exe
-- Settings and About screens
-- Main button explains the native-engine limitation
-- GitHub Actions workflow builds a debug APK
+## Current native milestones
 
-## Native Vulkan bootstrap
+- Kotlin launcher UI and file picker for selecting `NSUNSR.exe`.
+- ARM64 JNI library built with the Android NDK.
+- Vulkan physical-device and buffer-device-address capability diagnostics.
+- Android `SurfaceView` connected to a native Vulkan renderer.
+- Native renderer creates an Android Vulkan surface, graphics/present queue,
+  swapchain, render pass and framebuffers, then presents a diagnostic
+  clear-color frame.
 
-The Android app now builds an ARM64 C++ JNI module with the Android NDK. It
-initializes Vulkan and lists the detected GPU devices in the launcher. This is
-a native graphics capability probe and a starting point for future renderer
-work; it is **not** the complete Naruto Storm Revolution game engine and does
-not render or run the game.
+The Vulkan preview is a renderer bring-up test. It is **not** the Naruto game
+renderer and does not draw game assets or execute game code.
 
-See [NATIVE_ENGINE_STATUS.md](docs/NATIVE_ENGINE_STATUS.md) for scope and
-missing components.
+See [Native engine status](docs/NATIVE_ENGINE_STATUS.md) and
+[Native port path](docs/NATIVE_PORT_PATH.md).
 
-## No Windows compatibility runtime
-This branch contains no Winlator, Wine, Box64, DXVK, or other Windows compatibility runtime. The launcher does not execute NSUNSR.exe. A real native ARM64 game port requires the game's source code or a substantial clean-room reimplementation and is not included.
+## What is not included
+
+This branch contains no Winlator, Wine, Box64, DXVK, or other Windows
+compatibility runtime. It does not execute `NSUNSR.exe`. It also does not
+contain Naruto Storm Revolution's native ARM64 game engine, generated
+recompiled game code, proprietary game assets, or gameplay implementation.
+
+A real native port needs legally usable source code and its build system, or a
+substantial clean-room implementation of the platform/runtime, renderer,
+asset loading, audio, input, animation and gameplay systems. A Windows x86
+PE executable cannot be directly converted to a runnable Android ARM64 game
+by the launcher.
 
 ## Build
-Open **Actions** and run **Build Storm Revolution Native Launcher**. Download the artifact named `storm-revolution-native-launcher-debug` after a successful run.
+
+Open **Actions** and run **Build Storm Revolution Native Launcher**. Download
+the artifact named `storm-revolution-native-launcher-debug` after a successful
+run. The workflow verifies that `lib/arm64-v8a/libstorm_engine.so` is packaged
+in the APK.

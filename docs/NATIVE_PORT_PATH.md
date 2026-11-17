@@ -1,48 +1,51 @@
-# Native port path and compatibility gate
+# Native Port Path and Compatibility Gate
 
-## Current milestone
+## Current milestone — launcher v0.4.0
 
-Version 0.3.0 adds a native NDK/Vulkan check for the GPU feature used by the
-public Storm Revolution Xbox 360 ARM64 static-recompilation project's README:
-`VK_KHR_buffer_device_address` (or the Vulkan 1.2 core feature).
+The project now has a native Android Vulkan surface renderer. It creates an
+Android surface and swapchain, records a render pass that clears the target,
+and presents a test frame. This validates only the graphics presentation
+plumbing; it is not game rendering.
 
-This check reports the physical GPU, device Vulkan API version, and whether
-buffer device address is exposed and enabled as a supported feature. It is a
-hardware capability probe only. It does not load game code, render a game
-frame, or establish that the phone can run the port.
+The app also checks whether the selected GPU exposes the buffer-device-address
+feature described in a public Storm Revolution Xbox 360 ARM64 port README.
 
 ## Game executable mismatch
 
-The launcher user's previously inspected `NSUNSR.exe` is a Windows PE32
-(x86) executable using Direct3D 9. The public native-port documentation found
-during research targets a specific Xbox 360 `default.xex` (PowerPC), requires
-one exact NTSC-U executable hash, and says its repository contains
-documentation only rather than the port's implementation source.
+The previously inspected `NSUNSR.exe` is a Windows PE32 x86 executable using
+Direct3D 9. A public native-port repository found during research documents a
+specific Xbox 360 PowerPC `default.xex` target with an exact NTSC-U build/hash.
+Its README says the repository contains documentation rather than the actual
+port implementation source.
 
-Those inputs are not interchangeable:
+These inputs are not interchangeable:
 - Windows `NSUNSR.exe` is not an Xbox 360 `default.xex`.
-- A Vulkan GPU probe cannot translate PE32 code into ARM64.
-- The public port's README is not its game engine source and does not grant
-  permission to reuse unpublished implementation code or proprietary assets.
+- A Vulkan renderer cannot translate Windows x86 instructions into ARM64.
+- The external README is not the engine implementation and does not provide
+  permission to redistribute game code or proprietary assets.
 
-## What is still required for a real native game port
+## Requirements for a real native game port
 
-At least one of these routes is required:
+One of the following is required:
 
-1. Obtain legally usable original game engine source and the matching build
-   system, then port the platform layer to Android/ARM64; or
-2. Undertake a clean-room reimplementation of the game runtime, renderer,
-   asset readers, animation, audio, input, and gameplay systems, using only
-   material that can lawfully be used.
+1. Legally usable original game source code and its build system, followed by
+   an Android/ARM64 platform port; or
+2. A clean-room implementation of the engine/runtime and platform layer, with
+   a legal basis for all game assets and data used.
 
-For a static-recompilation route, the exact target executable, generated
-recompiled code, runtime support layer, graphics backend, and platform
-integration must all be available. The Windows PE32 executable currently
-identified does not match the Xbox 360 recompilation target.
+A static-recompilation route additionally requires the exact target binary,
+generated recompiled code, runtime support layer, graphics backend and
+platform integration. The Windows x86 executable currently identified does
+not match the external Xbox 360 recompilation target.
 
-## Next verification on the phone
+## Hardware checks
 
-Install the 0.3.0 debug APK and read the home screen's Vulkan diagnostic.
-A "LOLOS pemeriksaan fitur" result means only that the GPU exposes the
-buffer-device-address capability used by that port's documented GPU gate.
-It is not a performance benchmark or proof that a game build is available.
+Install the current debug APK on the target phone and inspect the Vulkan
+diagnostic. A supported buffer-device-address feature is only a capability
+gate. It is not proof of renderer performance or game compatibility.
+
+## Next steps
+
+Verify the Vulkan preview on the target Android device, then grow the
+independent renderer/platform modules. Do not treat those modules as a port of
+Storm Revolution until game-specific code and legal asset access exist.
