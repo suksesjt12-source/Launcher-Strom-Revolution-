@@ -10,6 +10,7 @@ object StormEngine {
     private external fun nativeGetEngineReport(): String
     private external fun nativeStartRenderer(surface: Surface)
     private external fun nativeStopRenderer()
+    private external fun nativeResetGame()
     private external fun nativeSendTouch(pointerId: Int, x: Float, y: Float, action: Int)
     private external fun nativeSetAssetRoot(path: String)
     private external fun nativeLoadAsset(relativePath: String): Boolean
@@ -55,6 +56,12 @@ object StormEngine {
     fun stopRenderer() {
         if (libraryLoaded) {
             try { nativeStopRenderer() } catch (_: Exception) { }
+        }
+    }
+
+    fun resetGame() {
+        if (ensureLibraryLoaded()) {
+            try { nativeResetGame() } catch (_: Exception) { }
         }
     }
 
