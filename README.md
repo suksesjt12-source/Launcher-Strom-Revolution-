@@ -1,5 +1,12 @@
 # Storm Revolution Launcher — Storm Engine Native 3D
 
+## Engine Core v0.10.0
+
+- Adds a direct CPK file picker for inspecting large `data.cpk`, `stage.cpk`, and other CRI archives without extracting their payloads.
+- Expands the bounded CPK TOC sample from 12 to 64 rows, while retaining metadata size limits and offset validation.
+- CPK inspection runs on a background thread and reads through Android's Storage Access Framework; the source archive is never modified.
+
+
 Standalone Android launcher with an in-progress native C++17 / ARM64 engine.
 
 ## Engine Core v0.8.0
@@ -31,6 +38,9 @@ The CPK reader parses the container's UTF metadata and a bounded number of TOC r
 A real native game port still requires format validation against the user's actual PC installation, payload importers, and a clean-room implementation of the game runtime. The Windows PE32 executable cannot be converted into Android ARM64 code by ordinary APK compilation.
 
 ## Asset inspection flow
+
+1. Choose **PILIH CPK & BACA INDEKS** and select `data/sim/data.cpk` first. The inspector reads the CPK header and a bounded UTF/TOC metadata sample; it does not extract the archive.
+2. Repeat with `stage.cpk` to compare the stage archive index.
 
 1. Choose **PILIH FOLDER INSTALASI GAME**.
 2. Press **INVENTARIS ASET GAME**.
