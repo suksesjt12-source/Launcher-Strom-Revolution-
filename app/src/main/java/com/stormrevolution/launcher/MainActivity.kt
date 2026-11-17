@@ -15,6 +15,7 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import java.io.File
 
 class MainActivity : Activity() {
     private val bg = Color.rgb(11, 13, 18)
@@ -29,9 +30,30 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         window.statusBarColor = bg
         window.navigationBarColor = bg
-        StormEngine.setAssetRoot(filesDir.absolutePath)
+        prepareRendererAssets()
         buildShell()
         showHome()
+    }
+
+    /**
+     * Shader source is compiled to SPIR-V by the Android CI workflow and
+     * packaged in APK assets. Copy it to app-private storage for native Vulkan.
+     */
+    private fun prepareRendererAssets() {
+        try {
+            val shaderDirectory = File(filesDir, "shaders")
+            if (!shaderDirectory.exists()) shaderDirectory.mkdirs()
+            listOf("storm.vert.spv", "storm.frag.spv").forEach { name ->
+                assets.open("shaders/$name").use { input ->
+                    File(shaderDirectory, name).outputStream().use { output ->
+                        input.copyTo(output)
+                    }
+                }
+            }
+        } catch (_: Exception) {
+            // The native renderer reports a readable error if shader assets are absent.
+        }
+        StormEngine.setAssetRoot(filesDir.absolutePath)
     }
 
     private fun buildShell() {
@@ -81,7 +103,7 @@ class MainActivity : Activity() {
         content.addView(card {
             addView(label("NINJA BATTLE EXPERIENCE", 11, orange, true))
             addView(label("STORM REVOLUTION", 27, white, true))
-            addView(label("Launcher Android mandiri dengan tampilan khusus.", 14, muted))
+            addView(label("Launcher Android mandiri dengan preview mesin 3D Vulkan.", 14, muted))
         })
         content.addView(card {
             addView(label("GAME TERPILIH", 12, orange, true))
@@ -92,15 +114,16 @@ class MainActivity : Activity() {
         content.addView(card {
             addView(label("STATUS PROYEK", 12, orange, true))
             addView(label("Launcher: aktif", 14, white))
-            addView(label("Storm Engine: fixed loop 60 Hz, scene/entity, touch input, asset cache", 13, white))
-            addView(label("Runtime khusus Naruto native ARM64: belum tersedia", 13, muted))
+            addView(label("Storm Engine: Vulkan 3D pipeline, depth buffer, kamera perspektif, mesh uji, input multi-sentuh.", 13, white))
+            addView(label("Runtime khusus Naruto native ARM64: belum tersedia.", 13, muted))
             addView(label("Tidak ada Wine, Box64, DXVK, atau Winlator.", 12, muted))
         })
         content.addView(card {
-            addView(label("DIAGNOSTIK GPU VULKAN", 12, orange, true))
+            addView(label("PREVIEW RENDERER 3D VULKAN", 12, orange, true))
             addView(label(StormEngine.getVulkanReport(), 12, white))
-            addView(label("Area uji input: sisi kiri analog, kanan atas lompat, kanan bawah serang. Frame masih tes Vulkan, belum grafis game.", 11, muted))
-            addView(NativeVulkanSurfaceView(this@MainActivity), LinearLayout.LayoutParams(-1, dp(170)))
+            addView(label(StormEngine.getEngineReport(), 11, muted))
+            addView(label("Kontrol uji: kiri untuk bergerak; area kanan atas dan bawah disiapkan untuk input lompat/serang. Model ini hanya aset uji mesin.", 11, muted))
+            addView(NativeVulkanSurfaceView(this@MainActivity), LinearLayout.LayoutParams(-1, dp(230)))
         })
         show(content)
     }
@@ -128,7 +151,7 @@ class MainActivity : Activity() {
         })
         content.addView(card {
             addView(label("KOMPATIBILITAS GAME", 14, orange, true))
-            addView(label("Engine native belum terpasang. Opsi grafis game belum aktif.", 13, muted))
+            addView(label("Renderer Vulkan 3D untuk uji engine sudah ditambahkan. Pipeline game belum tersedia.", 13, muted))
             addView(label("Launcher ini tidak memuat runtime Windows.", 12, muted))
         })
         show(content)
@@ -139,8 +162,8 @@ class MainActivity : Activity() {
         content.addView(label("TENTANG", 24, white, true))
         content.addView(card {
             addView(label("STORM REVOLUTION LAUNCHER", 17, white, true))
-            addView(label("Versi 0.5.0 · Storm Engine Core", 12, orange, true))
-            addView(label("Launcher mandiri dengan engine core C++/ARM64. Belum memuat runtime khusus Naruto atau menjalankan EXE Windows.", 13, muted))
+            addView(label("Versi 0.6.0 · Storm Engine Vulkan 3D", 12, orange, true))
+            addView(label("Engine native ARM64 dengan render pipeline 3D awal. Belum memuat runtime khusus Naruto atau menjalankan EXE Windows.", 13, muted))
         })
         show(content)
     }
@@ -221,10 +244,10 @@ class MainActivity : Activity() {
 
     private fun showEngineNotice() {
         AlertDialog.Builder(this)
-            .setTitle("Engine native belum tersedia")
+            .setTitle("Engine game native belum tersedia")
             .setMessage(
                 if (selectedName == "Belum ada file dipilih")
-                    "Pilih NSUNSR.exe terlebih dahulu. Launcher ini belum memiliki engine game native Android."
+                    "Pilih NSUNSR.exe terlebih dahulu. Preview Vulkan 3D hanya menguji mesin dasar; belum ada engine game Naruto native Android."
                 else
                     "$selectedName sudah dipilih. File EXE Windows tidak dapat dijalankan langsung oleh Android. Port ARM64 native masih diperlukan."
             )

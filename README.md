@@ -1,25 +1,27 @@
-# Storm Revolution Launcher — Storm Engine Core
+# Storm Revolution Launcher — Storm Engine Native 3D
 
-Standalone Android launcher with an in-progress native C++17 / ARM64 engine core.
+Standalone Android launcher with an in-progress native C++17 / ARM64 engine.
 
-## Engine Core v0.5.0
+## Engine Core v0.6.0
 
 - Kotlin launcher and JNI bridge.
-- Native Android Vulkan surface and swapchain presentation.
-- Fixed-step 60 Hz simulation loop with bounded catch-up.
-- Scene/entity state with a sandbox actor transform.
-- Multi-touch input: left-side virtual analog stick; upper-right jump; lower-right attack.
-- App-private binary asset cache with relative-path validation and a 128 MiB memory limit.
-- GitHub Actions builds the APK and verifies the native ARM64 library is packaged.
+- Native Android Vulkan surface, swapchain and presentation.
+- Vulkan graphics pipeline with vertex and fragment SPIR-V shaders.
+- Perspective camera, color material tint, depth attachment and depth testing.
+- Procedural low-poly sphere mesh used to assemble a temporary test actor and platform.
+- Fixed-step 60 Hz simulation with bounded catch-up.
+- Scene/entity state; left-side virtual analog input moves the test actor.
+- App-private shader/asset loading with relative-path validation and a 128 MiB cache.
+- GitHub Actions compiles GLSL to SPIR-V, builds the APK and verifies ARM64 library/shader assets.
 
-The sandbox actor is updated by the simulation, but is **not yet drawn** as a 3D model. The Vulkan renderer still presents a diagnostic clear pass only.
+The 3D actor is generated from simple engine test geometry. It is not a Naruto character model and does not contain game artwork.
 
 ## Not included
 
-This project contains no Winlator, Wine, Box64, DXVK, or other Windows compatibility runtime. It does not execute `NSUNSR.exe`.
+This project contains no Winlator, Wine, Box64, DXVK or Windows compatibility runtime. It does not execute `NSUNSR.exe`.
 
-It is not the original Naruto Storm Revolution engine. No proprietary gameplay code, game asset readers, character rigs, animations, sounds, or generated game recompilation output are included. A native port still requires legally usable source code or a clean-room implementation and legally usable game data. The Windows PE32 executable cannot be directly converted into a runnable Android ARM64 game by this launcher.
+It is not the original Naruto Storm Revolution engine. No proprietary gameplay code, game asset readers, character rigs, game animations, sounds or generated game recompilation output are included. A native game port still requires legally usable source code or a clean-room implementation and legally usable game data. The Windows PE32 executable cannot be directly converted into a runnable Android ARM64 game by this launcher.
 
 ## Build
 
-Open **Actions** and run **Build Storm Revolution Native Launcher**. After a successful run, download the artifact named `storm-revolution-native-launcher-debug`.
+Open **Actions** and run **Build Storm Revolution Native Launcher**. The workflow installs `glslang-tools`, compiles the Vulkan shaders, then builds the APK. Download the artifact named `storm-revolution-native-launcher-debug`.

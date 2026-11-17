@@ -1,21 +1,23 @@
-# Storm Engine Core — Status 0.5.0
+# Storm Engine Native — Status 0.6.0
 
 ## Implemented native modules
 
 - **Runtime:** 60 Hz fixed-step simulation, bounded catch-up after frame stalls, render-frame and simulation-update counters.
-- **Scene/entity:** entity store with a sandbox actor transform updated by movement input.
-- **Input:** thread-safe multi-touch input queue. Left half maps to an analog stick; upper-right maps to jump; lower-right maps to attack.
-- **Asset store:** app-private relative-path binary loader/cache, rejects absolute and parent-traversal paths, 128 MiB cache budget.
-- **Graphics:** native Vulkan Android surface, swapchain, render pass, framebuffers, command submission and presentation.
+- **Scene/entity:** sandbox actor transform; actor world position is exposed safely to the renderer.
+- **Input:** thread-safe multi-touch input. Left-side analog input moves the test actor.
+- **Asset store:** app-private relative-path binary loader/cache; rejects absolute paths, parent traversal, backslashes and drive prefixes; 128 MiB memory cap.
+- **Vulkan surface:** Android surface, swapchain, command submission and presentation.
+- **Graphics pipeline:** compiled vertex/fragment SPIR-V shaders, vertex buffer, procedural sphere mesh, push-constant transforms, perspective camera, depth image/render pass and depth testing.
+- **Test scene:** low-poly placeholder actor and circular floor assembled from procedural sphere geometry; input moves the actor in the preview.
 
 ## Prototype limits
 
-- Vulkan currently clears the swapchain image only; no mesh draw calls, shader/material pipeline, camera or skeletal renderer yet.
-- Sandbox actor simulation is not visible as a model yet.
-- Asset cache handles generic raw files, not the game's proprietary resource formats.
-- No game audio backend, sound-bank decoding, animation runtime, gameplay or save compatibility yet.
+- The actor is a temporary procedural test model, not a production character asset.
+- No skeletal rig, imported 3D model format, material/texture system, animation graph, physics or game combat system yet.
+- No game audio backend, sound-bank decoding, save compatibility or proprietary resource parser.
 - No loading or execution of Windows `NSUNSR.exe`.
+- Device runtime rendering still requires testing on physical Android Vulkan hardware; GitHub Actions verifies compilation and APK packaging, not GPU visual output or frame rate.
 
 ## Source and rights
 
-The engine core is original platform infrastructure. It does not contain the original commercial game's source or assets. A real game port requires legally usable original source and its build system, or a clean-room implementation and legal access to the game data used.
+The engine core is original platform infrastructure and procedural test geometry. It does not contain the original commercial game's source or assets. A real game port requires legally usable original source and its build system, or a clean-room implementation and legal access to the game data.

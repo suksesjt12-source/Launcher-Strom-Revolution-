@@ -13,6 +13,13 @@ float clampAxis(float value) {
     return std::max(-1.0f, std::min(1.0f, value));
 }
 constexpr double kFixedStep = 1.0 / 60.0;
+
+bool isSafeRelativePath(const std::string& path) {
+    return !path.empty() && path.front() != '/' &&
+           path.find("..") == std::string::npos &&
+           path.find('\\') == std::string::npos &&
+           path.find(':') == std::string::npos;
+}
 }
 
 void InputSystem::pushTouch(int32_t id, float x, float y, int32_t action) {
@@ -80,7 +87,8 @@ void EngineRuntime::advance(int64_t nowNs, const InputFrame& input) {
     if (!running_) return;
     if (lastNs_ == 0) { lastNs_ = nowNs; ++renderFrames_; return; }
 
-    int64_t elapsedNs = std::max<int64_t>(0, std::min<int64_t>(nowNs - lastNs_, 250000000));
+    const int64_t elapsedNs = std::max<int64_t>(
+        0, std::min<int64_t>(nowNs - lastNs_, 250000000));
     lastNs_ = nowNs;
     accumulator_ += static_cast<double>(elapsedNs) / 1.0e9;
     ++renderFrames_;
@@ -88,28 +96,40 @@ void EngineRuntime::advance(int64_t nowNs, const InputFrame& input) {
     uint32_t steps = 0;
     while (accumulator_ >= kFixedStep && steps < 5) {
         if (!entities_.empty() && entities_[0].active) {
-            entities_[0].position.x += input.moveX * 3.0f * static_cast<float>(kFixedStep);
-            entities_[0].position.z += input.moveY * 3.0f * static_cast<float>(kFixedStep);
-            entities_[0].position.x = std::max(-10.0f, std::min(10.0f, entities_[0].position.x));
-            entities_[0].position.z = std::max(-10.0f, std::min(10.0f, entities_[0].position.z));
+            entities_[0].position.x +=
+                input.moveX * 3.0f * static_cast<float>(kFixedStep);
+            entities_[0].position.z +=
+                input.moveY * 3.0f * static_cast<float>(kFixedStep);
+            entities_[0].position.x = std::max(
+                -10.0f, std::min(10.0f, entities_[0].position.x));
+            entities_[0].position.z = std::max(
+                -10.0f, std::min(10.0f, entities_[0].position.z));
         }
         accumulator_ -= kFixedStep;
         ++fixedUpdates_;
         ++steps;
     }
-    if (steps == 5 && accumulator_ > kFixedStep) accumulator_ = std::fmod(accumulator_, kFixedStep);
+    if (steps == 5 && accumulator_ > kFixedStep)
+        accumulator_ = std::fmod(accumulator_, kFixedStep);
+}
+
+Vec3 EngineRuntime::actorPosition() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return entities_.empty() ? Vec3{} : entities_[0].position;
 }
 
 std::string EngineRuntime::report() const {
     std::lock_guard<std::mutex> lock(mutex_);
     std::ostringstream out;
-    out << "Storm Engine Core\nState: " << (running_ ? "RUNNING" : "STOPPED")
+    out << "Storm Engine Core 0.6.0\nState: "
+        << (running_ ? "RUNNING" : "STOPPED")
         << "\nSimulation: fixed 60 Hz\nRender frames: " << renderFrames_
         << "\nFixed updates: " << fixedUpdates_
         << "\nScene entities: " << entities_.size();
     if (!entities_.empty()) {
         out << "\nSandbox actor: " << entities_[0].position.x
-            << ", 0, " << entities_[0].position.z;
+            << ", " << entities_[0].position.y
+            << ", " << entities_[0].position.z;
     }
     return out.str();
 }
@@ -119,28 +139,40 @@ void AssetStore::setRoot(std::string root) {
     root_ = std::move(root);
 }
 
-bool AssetStore::loadRelative(const std::string& path) {
+bool AssetStore::readRelative(const std::string& path,
+                              std::vector<uint8_t>& output) {
     std::lock_guard<std::mutex> lock(mutex_);
-    if (root_.empty() || path.empty() || path.front() == '/' ||
-        path.find("..") != std::string::npos ||
-        path.find('\\') != std::string::npos ||
-        path.find(':') != std::string::npos) return false;
-    if (cache_.find(path) != cache_.end()) return true;
+    if (root_.empty() || !isSafeRelativePath(path)) return false;
+
+    const auto cached = cache_.find(path);
+    if (cached != cache_.end()) {
+        output = cached->second;
+        return true;
+    }
 
     std::ifstream input(root_ + "/" + path, std::ios::binary | std::ios::ate);
     if (!input) return false;
     const std::streamoff size = input.tellg();
     if (size < 0) return false;
     const size_t bytes = static_cast<size_t>(size);
-    if (bytes > memoryLimitBytes_ || cachedBytes_ > memoryLimitBytes_ - bytes) return false;
+    if (bytes > memoryLimitBytes_ ||
+        cachedBytes_ > memoryLimitBytes_ - bytes) return false;
 
     std::vector<uint8_t> data(bytes);
     input.seekg(0, std::ios::beg);
-    if (bytes > 0 && !input.read(reinterpret_cast<char*>(data.data()),
-                                 static_cast<std::streamsize>(bytes))) return false;
+    if (bytes > 0 && !input.read(
+            reinterpret_cast<char*>(data.data()),
+            static_cast<std::streamsize>(bytes))) return false;
+
     cachedBytes_ += bytes;
-    cache_.emplace(path, std::move(data));
+    auto inserted = cache_.emplace(path, std::move(data));
+    output = inserted.first->second;
     return true;
+}
+
+bool AssetStore::loadRelative(const std::string& relativePath) {
+    std::vector<uint8_t> ignored;
+    return readRelative(relativePath, ignored);
 }
 
 std::string AssetStore::report() const {

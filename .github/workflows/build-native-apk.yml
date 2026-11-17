@@ -1,5 +1,5 @@
 name: Build Storm Revolution Native Launcher
-run-name: Verify ARM64 Vulkan APK
+run-name: Verify ARM64 Vulkan 3D APK
 
 on:
   workflow_dispatch:
@@ -43,16 +43,31 @@ jobs:
       - name: Install Android SDK packages
         run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018" "cmake;3.22.1"
 
+      - name: Install Vulkan shader compiler
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y glslang-tools
+
+      - name: Compile Vulkan shaders to SPIR-V
+        run: |
+          mkdir -p app/src/main/assets/shaders
+          glslangValidator -V --target-env vulkan1.0 app/src/main/shaders/storm.vert -o app/src/main/assets/shaders/storm.vert.spv
+          glslangValidator -V --target-env vulkan1.0 app/src/main/shaders/storm.frag -o app/src/main/assets/shaders/storm.frag.spv
+          test -s app/src/main/assets/shaders/storm.vert.spv
+          test -s app/src/main/assets/shaders/storm.frag.spv
+
       - name: Build debug APK
         run: gradle --no-daemon :app:assembleDebug
 
-      - name: Verify native ARM64 library is packaged
+      - name: Verify native ARM64 library and shader assets are packaged
         shell: bash
         run: |
           APK="app/build/outputs/apk/debug/app-debug.apk"
           test -s "$APK"
           unzip -Z1 "$APK" | grep -Fx "lib/arm64-v8a/libstorm_engine.so"
-          echo "Native ARM64 Vulkan renderer library is packaged."
+          unzip -Z1 "$APK" | grep -Fx "assets/shaders/storm.vert.spv"
+          unzip -Z1 "$APK" | grep -Fx "assets/shaders/storm.frag.spv"
+          echo "Native ARM64 Vulkan 3D renderer and SPIR-V shaders are packaged."
 
       - name: Upload APK
         uses: actions/upload-artifact@v4

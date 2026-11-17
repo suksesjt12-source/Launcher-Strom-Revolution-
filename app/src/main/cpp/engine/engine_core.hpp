@@ -40,6 +40,7 @@ public:
     void start();
     void stop();
     void advance(int64_t monotonicNs, const InputFrame& input);
+    Vec3 actorPosition() const;
     std::string report() const;
 
 private:
@@ -56,6 +57,8 @@ class AssetStore {
 public:
     void setRoot(std::string root);
     bool loadRelative(const std::string& relativePath);
+    bool readRelative(const std::string& relativePath,
+                      std::vector<uint8_t>& output);
     std::string report() const;
 
 private:
