@@ -15,7 +15,7 @@ Standalone Android launcher with an in-progress native C++17 / ARM64 engine.
 - Android Storage Access Framework folder picker for the user's game installation directory.
 - Read-only recursive asset inventory with extension counts and file-header previews.
 - Metadata reader for CRI CPK/UTF headers and TOC sample entries.
-- Metadata reader for NUCC/XFBIN headers, index counts, type strings and bounded chunk-header previews.
+- NUCC/XFBIN page/chunk map reader and bounded NUD/NUT payload extraction into app-private storage.
 - GitHub Actions compiles GLSL to SPIR-V, builds the APK and verifies ARM64 library/shader assets.
 
 The CPK reader parses the container's UTF metadata and a bounded number of TOC rows. The XFBIN reader reports index structures and chunk headers. Both are read-only and validate offsets and sizes before reading.
@@ -23,7 +23,7 @@ The CPK reader parses the container's UTF metadata and a bounded number of TOC r
 ## Important current limits
 
 - The CPK inspector does not extract archive payloads or decompress CRILAYLA file data.
-- The XFBIN inspector does not decode NUD mesh, NUT texture, ANM animation, material, VFX, or script payloads.
+- The XFBIN extractor saves embedded NUD/NDP3 and NUT/NTP3 payloads, but does not decode vertex/index buffers, skeletons, materials, texture pixels, ANM animation, VFX, or scripts.
 - The 3D actor is generated from simple engine test geometry. It is not a Naruto character model and does not contain game artwork.
 - No game combat system, retail character assets, retail animations, audio backend, save compatibility or original gameplay code is included.
 - This project contains no Winlator, Wine, Box64 or DXVK. It does not execute NSUNSR.exe.
@@ -35,10 +35,15 @@ A real native game port still requires format validation against the user's actu
 1. Choose **PILIH FOLDER INSTALASI GAME**.
 2. Press **INVENTARIS ASET GAME**.
 3. Review extension counts and the **ANALISIS CONTAINER RETAIL** section.
-4. Use the actual file names, signatures, CPK TOC and XFBIN type index to decide which payload importer can be implemented next.
+4. Use the actual file names, signatures, CPK TOC and XFBIN type index to choose an individual `.xfbin` file.
+5. Press **PILIH XFBIN & EKSTRAK NUD/NUT**. Extracted payloads are saved only inside the app's private storage.
 
-The scanner and container inspector never modify the selected game folder.
+The scanner and extractor never modify the selected game folder. The XFBIN extractor creates output only inside the app's private storage.
 
 ## Build
 
 Open **Actions** and run **Build Storm Revolution Native Launcher**. The workflow installs glslang-tools, compiles the Vulkan shaders, then builds the APK. Download the artifact named storm-revolution-native-launcher-debug.
+
+## XFBIN format reference
+
+The page/chunk reader was independently written using published CyberConnect2 NUCC/XFBIN structure research. A MIT-licensed reference implementation used for format cross-checking is `spawner1145/Blender-XFBIN-Importer` (`xfbin_lib`); its license is available at https://github.com/spawner1145/Blender-XFBIN-Importer/tree/main/xfbin_lib. This project does not bundle that Python library.

@@ -31,6 +31,8 @@ class MainActivity : Activity() {
     private var selectedFolderName = "Folder game belum dipilih"
     private var assetScanReport = "Pilih folder instalasi game untuk mulai inventaris aset."
     private var scanInProgress = false
+    private var extractionInProgress = false
+    private var extractionReport = "Belum ada payload XFBIN yang diekstrak."
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -126,7 +128,9 @@ class MainActivity : Activity() {
                 scanGameFolder()
             })
             addView(label(assetScanReport, 11, muted))
-            addView(label("0.8.0: metadata CPK/UTF dan index XFBIN dibaca langsung. Payload model, tekstur, animasi, serta gameplay belum didukung.", 10, muted))
+            addView(label("0.9.0: tabel XFBIN, halaman, dan payload NUD/NUT dapat diekstrak ke penyimpanan privat aplikasi. Decoder mesh/tekstur dan gameplay masih dikerjakan.", 10, muted))
+            addView(action(if (extractionInProgress) "MENGEKSTRAK PAYLOAD..." else "PILIH XFBIN & EKSTRAK NUD/NUT") { pickXfbin() })
+            addView(label(extractionReport, 10, muted))
         })
         content.addView(card {
             addView(label("STATUS PROYEK", 12, orange, true))
@@ -179,7 +183,7 @@ class MainActivity : Activity() {
         content.addView(label("TENTANG", 24, white, true))
         content.addView(card {
             addView(label("STORM REVOLUTION LAUNCHER", 17, white, true))
-            addView(label("Versi 0.8.0 · Storm Engine + Retail Container Reader", 12, orange, true))
+            addView(label("Versi 0.9.0 · XFBIN Model/Texture Payload Extractor", 12, orange, true))
             addView(label("Engine native ARM64 dengan render pipeline 3D awal. Belum memuat runtime khusus Naruto atau menjalankan EXE Windows.", 13, muted))
         })
         show(content)
@@ -246,6 +250,8 @@ class MainActivity : Activity() {
         }
         assetScanReport = preferences.getString("asset_scan_report", null)
             ?: "Pilih folder instalasi game untuk mulai inventaris aset."
+        extractionReport = preferences.getString("extraction_report", null)
+            ?: "Belum ada payload XFBIN yang diekstrak."
     }
 
     private fun pickExe() {
@@ -258,6 +264,15 @@ class MainActivity : Activity() {
             )
         }
         startActivityForResult(intent, 21)
+    }
+
+    private fun pickXfbin() {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "*/*"
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+        }
+        startActivityForResult(intent, 23)
     }
 
     private fun pickGameFolder() {
@@ -328,6 +343,35 @@ class MainActivity : Activity() {
         showHome()
     }
 
+    private fun handleXfbin(uri: Uri, data: Intent?) {
+        val fileName = resolveDisplayName(uri)
+        if (!fileName.endsWith(".xfbin", ignoreCase = true)) {
+            AlertDialog.Builder(this)
+                .setTitle("Bukan file XFBIN")
+                .setMessage("Pilih satu file dengan ekstensi .xfbin. File lain belum dapat diproses oleh extractor ini.")
+                .setPositiveButton("OK", null).show()
+            return
+        }
+        runCatching {
+            val granted = (data?.flags ?: 0) and Intent.FLAG_GRANT_READ_URI_PERMISSION
+            if (granted != 0) contentResolver.takePersistableUriPermission(uri, granted)
+        }
+        if (extractionInProgress) return
+        extractionInProgress = true
+        extractionReport = "Membaca tabel XFBIN dan mengekstrak payload NUD/NUT..."
+        showHome()
+        Thread {
+            val result = XfbinPayloadExtractor.extract(contentResolver, uri, fileName, filesDir)
+            runOnUiThread {
+                extractionInProgress = false
+                extractionReport = result.report
+                getSharedPreferences("storm_launcher", MODE_PRIVATE).edit()
+                    .putString("extraction_report", extractionReport).apply()
+                showHome()
+            }
+        }.start()
+    }
+
     private fun handleGameFolder(uri: Uri, data: Intent?) {
         runCatching {
             val granted = (data?.flags ?: 0) and Intent.FLAG_GRANT_READ_URI_PERMISSION
@@ -382,6 +426,7 @@ class MainActivity : Activity() {
         when (requestCode) {
             21 -> handleGameFile(uri, data)
             22 -> handleGameFolder(uri, data)
+            23 -> handleXfbin(uri, data)
         }
     }
 
