@@ -453,79 +453,141 @@ void drawSphere(VkCommandBuffer commandBuffer, VkPipelineLayout pipelineLayout,
     vkCmdDraw(commandBuffer, vertexCount, 1, 0, 0);
 }
 
-void drawSandboxScene(VkCommandBuffer commandBuffer,
-                      VkPipelineLayout pipelineLayout,
-                      VkBuffer vertexBuffer, uint32_t vertexCount,
-                      const Mat4& viewProjection,
-                      const storm::Vec3& actor,
-                      const storm::InputFrame& input,
-                      float seconds) {
+void drawFighter(VkCommandBuffer commandBuffer,
+                 VkPipelineLayout pipelineLayout,
+                 uint32_t vertexCount, const Mat4& viewProjection,
+                 const storm::Vec3& position, float yaw,
+                 float attackTime, bool blocking, float walkPhase,
+                 const std::array<float, 3>& suit,
+                 const std::array<float, 3>& accent) {
+    const float movement = std::min(1.0f, std::abs(walkPhase) * 4.5f);
+    const float bob = std::sin(walkPhase * 8.0f) * 0.035f;
+    const float stride = std::sin(walkPhase * 8.0f) * 0.18f;
+    const float punch = attackTime > 0.0f
+        ? std::sin((attackTime / 0.27f) * 3.14159265f) * 0.62f : 0.0f;
+    const float blockPose = blocking ? 0.32f : 0.0f;
+    const float c = std::cos(yaw);
+    const float s = std::sin(yaw);
+
+    auto part = [&](float lx, float ly, float lz,
+                    float sx, float sy, float sz,
+                    const std::array<float, 3>& color) {
+        const float wx = position.x + c * lx + s * lz;
+        const float wz = position.z - s * lx + c * lz;
+        drawSphere(commandBuffer, pipelineLayout, vertexCount, viewProjection,
+                   wx, position.y + ly, wz, sx, sy, sz, yaw, color);
+    };
+
+    // Contact shadow and feet.
+    part(0.0f, -0.13f, 0.0f, 0.47f, 0.035f, 0.34f,
+         {0.035f, 0.045f, 0.065f});
+    part(-0.16f, 0.16f + stride * 0.25f, 0.03f,
+         0.17f, 0.12f, 0.25f, {0.045f, 0.055f, 0.075f});
+    part(0.16f, 0.16f - stride * 0.25f, 0.03f,
+         0.17f, 0.12f, 0.25f, {0.045f, 0.055f, 0.075f});
+
+    // Legs, torso and shoulder guards.
+    part(-0.16f, 0.43f + bob + stride * 0.30f, 0.0f,
+         0.14f, 0.34f, 0.15f, suit);
+    part(0.16f, 0.43f + bob - stride * 0.30f, 0.0f,
+         0.14f, 0.34f, 0.15f, suit);
+    part(0.0f, 1.12f + bob, 0.0f,
+         0.36f, 0.52f, 0.24f, suit);
+    part(-0.39f, 1.40f + bob, 0.0f,
+         0.17f, 0.18f, 0.18f, accent);
+    part(0.39f, 1.40f + bob, 0.0f,
+         0.17f, 0.18f, 0.18f, accent);
+
+    // Arms react to strike and guard input.
+    part(-0.48f, 1.08f + bob + blockPose * 0.45f,
+         0.01f + blockPose * 0.42f,
+         0.14f, 0.34f, 0.14f, suit);
+    part(0.47f, 1.08f + bob,
+         0.08f + punch + blockPose * 0.36f,
+         0.14f, 0.15f, 0.30f + punch * 0.24f, accent);
+    part(-0.49f, 0.80f + bob + blockPose * 0.35f,
+         0.16f + blockPose * 0.45f,
+         0.13f, 0.13f, 0.14f, {0.78f, 0.58f, 0.42f});
+    part(0.49f, 0.83f + bob,
+         0.28f + punch,
+         0.13f, 0.13f, 0.16f, {0.78f, 0.58f, 0.42f});
+
+    // Head, hair silhouette and forehead protector accent.
+    part(0.0f, 1.91f + bob, 0.0f,
+         0.235f, 0.27f, 0.23f, {0.78f, 0.58f, 0.42f});
+    part(0.0f, 2.10f + bob, -0.035f,
+         0.25f, 0.105f, 0.245f, accent);
+    part(0.0f, 1.96f + bob, 0.18f,
+         0.16f, 0.035f, 0.035f, {0.10f, 0.12f, 0.16f});
+}
+
+void drawCombatScene(VkCommandBuffer commandBuffer,
+                     VkPipelineLayout pipelineLayout,
+                     VkBuffer vertexBuffer, uint32_t vertexCount,
+                     const Mat4& viewProjection,
+                     const storm::GameState& game,
+                     const storm::InputFrame& input,
+                     float seconds) {
     const VkDeviceSize offset = 0;
     vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertexBuffer, &offset);
 
-    const float movement = std::min(
-        1.0f, std::sqrt(input.moveX * input.moveX +
-                        input.moveY * input.moveY));
-    const float walk = std::sin(seconds * 9.0f) * movement * 0.20f;
-    const float bob = std::sin(seconds * 3.2f) * 0.025f;
-    const float yaw = movement > 0.08f
-        ? std::atan2(input.moveX, input.moveY)
-        : std::sin(seconds * 0.7f) * 0.035f;
+    // Compact training arena, deliberately built from procedural geometry.
+    drawSphere(commandBuffer, pipelineLayout, vertexCount, viewProjection,
+               0.0f, -0.22f, 0.0f, 9.3f, 0.18f, 6.8f, 0.0f,
+               {0.19f, 0.22f, 0.27f});
+    drawSphere(commandBuffer, pipelineLayout, vertexCount, viewProjection,
+               0.0f, -0.34f, 0.0f, 9.7f, 0.07f, 7.1f, 0.0f,
+               {0.085f, 0.105f, 0.14f});
+    for (int i = 0; i < 4; ++i) {
+        const float x = (i % 2 == 0) ? -7.7f : 7.7f;
+        const float z = (i < 2) ? -5.4f : 5.4f;
+        drawSphere(commandBuffer, pipelineLayout, vertexCount, viewProjection,
+                   x, 0.65f, z, 0.38f, 0.95f, 0.38f, 0.0f,
+                   {0.27f, 0.30f, 0.34f});
+        drawSphere(commandBuffer, pipelineLayout, vertexCount, viewProjection,
+                   x, 1.58f, z, 0.49f, 0.14f, 0.49f, 0.0f,
+                   {0.42f, 0.31f, 0.20f});
+    }
 
-    // A compact low-poly test actor and circular platform, not game assets.
-    drawSphere(commandBuffer, pipelineLayout, vertexCount, viewProjection,
-               actor.x, actor.y - 0.14f, actor.z,
-               3.4f, 0.10f, 2.6f, 0.0f, {0.12f, 0.16f, 0.23f});
-    drawSphere(commandBuffer, pipelineLayout, vertexCount, viewProjection,
-               actor.x, actor.y + 0.025f, actor.z,
-               0.43f, 0.035f, 0.31f, 0.0f, {0.055f, 0.07f, 0.11f});
+    const float playerWalk = std::sqrt(
+        input.moveX * input.moveX + input.moveY * input.moveY) *
+        (input.moveX < 0.0f ? -1.0f : 1.0f) * seconds;
+    const float enemyWalk = game.opponentAttackTime > 0.0f
+        ? 0.0f : seconds * 0.45f;
 
-    // Legs and boots.
-    drawSphere(commandBuffer, pipelineLayout, vertexCount, viewProjection,
-               actor.x - 0.17f, actor.y + 0.43f + bob, actor.z,
-               0.13f, 0.36f + walk * 0.18f, 0.14f,
-               walk, {0.12f, 0.20f, 0.34f});
-    drawSphere(commandBuffer, pipelineLayout, vertexCount, viewProjection,
-               actor.x + 0.17f, actor.y + 0.43f + bob, actor.z,
-               0.13f, 0.36f - walk * 0.18f, 0.14f,
-               -walk, {0.12f, 0.20f, 0.34f});
-    drawSphere(commandBuffer, pipelineLayout, vertexCount, viewProjection,
-               actor.x - 0.17f, actor.y + 0.12f, actor.z + 0.045f,
-               0.16f, 0.11f, 0.22f, 0.0f, {0.055f, 0.075f, 0.12f});
-    drawSphere(commandBuffer, pipelineLayout, vertexCount, viewProjection,
-               actor.x + 0.17f, actor.y + 0.12f, actor.z + 0.045f,
-               0.16f, 0.11f, 0.22f, 0.0f, {0.055f, 0.075f, 0.12f});
+    drawFighter(commandBuffer, pipelineLayout, vertexCount, viewProjection,
+                game.player, game.playerYaw, game.playerAttackTime,
+                game.blocking, playerWalk,
+                {0.13f, 0.24f, 0.39f}, {0.95f, 0.36f, 0.09f});
+    drawFighter(commandBuffer, pipelineLayout, vertexCount, viewProjection,
+                game.opponent, game.opponentYaw, game.opponentAttackTime,
+                false, enemyWalk,
+                {0.22f, 0.31f, 0.25f}, {0.72f, 0.16f, 0.12f});
 
-    // Torso, shoulder pieces and arms.
-    drawSphere(commandBuffer, pipelineLayout, vertexCount, viewProjection,
-               actor.x, actor.y + 1.15f + bob, actor.z,
-               0.36f, 0.53f, 0.23f, yaw, {0.16f, 0.24f, 0.38f});
-    drawSphere(commandBuffer, pipelineLayout, vertexCount, viewProjection,
-               actor.x - 0.39f, actor.y + 1.43f + bob, actor.z,
-               0.16f, 0.17f, 0.17f, 0.0f, {0.90f, 0.30f, 0.08f});
-    drawSphere(commandBuffer, pipelineLayout, vertexCount, viewProjection,
-               actor.x + 0.39f, actor.y + 1.43f + bob, actor.z,
-               0.16f, 0.17f, 0.17f, 0.0f, {0.90f, 0.30f, 0.08f});
-    drawSphere(commandBuffer, pipelineLayout, vertexCount, viewProjection,
-               actor.x - 0.48f, actor.y + 1.12f + bob, actor.z,
-               0.13f, 0.34f, 0.13f, -walk, {0.82f, 0.27f, 0.075f});
-    drawSphere(commandBuffer, pipelineLayout, vertexCount, viewProjection,
-               actor.x + 0.48f, actor.y + 1.12f + bob, actor.z,
-               0.13f, 0.34f, 0.13f, walk, {0.82f, 0.27f, 0.075f});
-    drawSphere(commandBuffer, pipelineLayout, vertexCount, viewProjection,
-               actor.x - 0.50f, actor.y + 0.82f + bob, actor.z + 0.02f,
-               0.13f, 0.14f, 0.13f, 0.0f, {0.78f, 0.58f, 0.40f});
-    drawSphere(commandBuffer, pipelineLayout, vertexCount, viewProjection,
-               actor.x + 0.50f, actor.y + 0.82f + bob, actor.z + 0.02f,
-               0.13f, 0.14f, 0.13f, 0.0f, {0.78f, 0.58f, 0.40f});
+    // Floating health bars keep the fight readable without extra render passes.
+    auto healthBar = [&](const storm::Vec3& p, float health,
+                         const std::array<float, 3>& fill) {
+        drawSphere(commandBuffer, pipelineLayout, vertexCount, viewProjection,
+                   p.x, p.y + 2.58f, p.z,
+                   0.86f, 0.055f, 0.075f, 0.0f, {0.025f, 0.03f, 0.04f});
+        const float width = 0.82f * std::max(0.0f, health);
+        const float shift = -0.82f * (1.0f - std::max(0.0f, health));
+        drawSphere(commandBuffer, pipelineLayout, vertexCount, viewProjection,
+                   p.x + shift, p.y + 2.58f, p.z + 0.015f,
+                   std::max(0.015f, width), 0.035f, 0.045f,
+                   0.0f, fill);
+    };
+    healthBar(game.player, game.playerHealth, {0.16f, 0.78f, 0.32f});
+    healthBar(game.opponent, game.opponentHealth, {0.88f, 0.20f, 0.14f});
 
-    // Head and a simple headband accent.
-    drawSphere(commandBuffer, pipelineLayout, vertexCount, viewProjection,
-               actor.x, actor.y + 1.91f + bob, actor.z,
-               0.235f, 0.27f, 0.23f, yaw, {0.78f, 0.58f, 0.40f});
-    drawSphere(commandBuffer, pipelineLayout, vertexCount, viewProjection,
-               actor.x, actor.y + 2.10f + bob, actor.z,
-               0.245f, 0.065f, 0.24f, yaw, {0.87f, 0.31f, 0.075f});
+    if (game.specialTime > 0.0f) {
+        const float pulse = 0.42f + 0.10f * std::sin(seconds * 25.0f);
+        const float midX = (game.player.x + game.opponent.x) * 0.5f;
+        const float midZ = (game.player.z + game.opponent.z) * 0.5f;
+        drawSphere(commandBuffer, pipelineLayout, vertexCount, viewProjection,
+                   midX, 1.15f, midZ, pulse, pulse, pulse,
+                   seconds * 3.0f, {0.20f, 0.55f, 1.0f});
+    }
 }
 
 void renderLoop(ANativeWindow* window) {
@@ -1121,7 +1183,7 @@ void renderLoop(ANativeWindow* window) {
             std::chrono::duration_cast<std::chrono::nanoseconds>(elapsed).count();
         const storm::InputFrame input = gInputSystem.snapshot();
         gEngineRuntime.advance(nowNs, input);
-        const storm::Vec3 actor = gEngineRuntime.actorPosition();
+        const storm::GameState game = gEngineRuntime.gameState();
         const float seconds = std::chrono::duration<float>(
             now - startTime).count();
 
@@ -1165,10 +1227,13 @@ void renderLoop(ANativeWindow* window) {
         vkCmdBindPipeline(
             commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
 
+        const float centerX = (game.player.x + game.opponent.x) * 0.5f;
+        const float centerY = (game.player.y + game.opponent.y) * 0.5f;
+        const float centerZ = (game.player.z + game.opponent.z) * 0.5f;
         const std::array<float, 3> eye{
-            actor.x, actor.y + 2.65f, actor.z + 6.5f};
+            centerX, centerY + 6.4f, centerZ + 13.6f};
         const std::array<float, 3> target{
-            actor.x, actor.y + 0.95f, actor.z};
+            centerX, centerY + 0.95f, centerZ};
         const Mat4 view = lookAt(eye, target);
         const Mat4 projection = perspective(
             0.82f,
@@ -1177,9 +1242,9 @@ void renderLoop(ANativeWindow* window) {
             0.10f, 40.0f);
         const Mat4 viewProjection = multiply(projection, view);
 
-        drawSandboxScene(
+        drawCombatScene(
             commandBuffer, pipelineLayout, vertexBuffer, vertexCount,
-            viewProjection, actor, input, seconds);
+            viewProjection, game, input, seconds);
 
         vkCmdEndRenderPass(commandBuffer);
         if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) break;
@@ -1280,6 +1345,14 @@ Java_com_stormrevolution_launcher_StormEngine_nativeGetEngineReport(
     const std::string report =
         gEngineRuntime.report() + "\n" + gAssetStore.report();
     return env->NewStringUTF(report.c_str());
+}
+
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_stormrevolution_launcher_StormEngine_nativeResetGame(
+    JNIEnv* /* env */, jobject /* caller */) {
+    gInputSystem.clear();
+    gEngineRuntime.reset();
 }
 
 extern "C"
