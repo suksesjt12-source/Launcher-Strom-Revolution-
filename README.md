@@ -2,7 +2,7 @@
 
 Standalone Android launcher with an in-progress native C++17 / ARM64 engine.
 
-## Engine Core v0.6.0
+## Engine Core v0.6.1
 
 - Kotlin launcher and JNI bridge.
 - Native Android Vulkan surface, swapchain and presentation.
@@ -12,6 +12,7 @@ Standalone Android launcher with an in-progress native C++17 / ARM64 engine.
 - Fixed-step 60 Hz simulation with bounded catch-up.
 - Scene/entity state; left-side virtual analog input moves the test actor.
 - App-private shader/asset loading with relative-path validation and a 128 MiB cache.
+- Android Storage Access Framework file picker reads the actual `DISPLAY_NAME` metadata, accepts any `.exe` filename, and remembers the selected document URI.
 - GitHub Actions compiles GLSL to SPIR-V, builds the APK and verifies ARM64 library/shader assets.
 
 The 3D actor is generated from simple engine test geometry. It is not a Naruto character model and does not contain game artwork.

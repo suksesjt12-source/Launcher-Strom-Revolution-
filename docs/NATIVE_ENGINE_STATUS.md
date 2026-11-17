@@ -1,4 +1,4 @@
-# Storm Engine Native — Status 0.6.0
+# Storm Engine Native — Status 0.6.1
 
 ## Implemented native modules
 
@@ -9,6 +9,7 @@
 - **Vulkan surface:** Android surface, swapchain, command submission and presentation.
 - **Graphics pipeline:** compiled vertex/fragment SPIR-V shaders, vertex buffer, procedural sphere mesh, push-constant transforms, perspective camera, depth image/render pass and depth testing.
 - **Test scene:** low-poly placeholder actor and circular floor assembled from procedural sphere geometry; input moves the actor in the preview.
+- **File picker:** obtains the filename using Android Storage Access Framework `OpenableColumns.DISPLAY_NAME`, accepts any `.exe` filename, and persists the selected URI/name.
 
 ## Prototype limits
 

@@ -7,6 +7,7 @@ import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
+import android.provider.OpenableColumns
 import android.os.Bundle
 import android.view.Gravity
 import android.view.View
@@ -25,11 +26,13 @@ class MainActivity : Activity() {
     private val muted = Color.rgb(157, 166, 181)
     private lateinit var pageHost: FrameLayout
     private var selectedName = "Belum ada file dipilih"
+    private var selectedGameUri: Uri? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.statusBarColor = bg
         window.navigationBarColor = bg
+        restoreSelectedGame()
         prepareRendererAssets()
         buildShell()
         showHome()
@@ -108,7 +111,7 @@ class MainActivity : Activity() {
         content.addView(card {
             addView(label("GAME TERPILIH", 12, orange, true))
             addView(label(selectedName, 15, white, true))
-            addView(action("PILIH FILE NSUNSR.EXE") { pickExe() })
+            addView(action("PILIH FILE GAME (.EXE)") { pickExe() })
             addView(action("MAIN SEKARANG") { showEngineNotice() })
         })
         content.addView(card {
@@ -162,7 +165,7 @@ class MainActivity : Activity() {
         content.addView(label("TENTANG", 24, white, true))
         content.addView(card {
             addView(label("STORM REVOLUTION LAUNCHER", 17, white, true))
-            addView(label("Versi 0.6.0 · Storm Engine Vulkan 3D", 12, orange, true))
+            addView(label("Versi 0.6.1 · Storm Engine Vulkan 3D", 12, orange, true))
             addView(label("Engine native ARM64 dengan render pipeline 3D awal. Belum memuat runtime khusus Naruto atau menjalankan EXE Windows.", 13, muted))
         })
         show(content)
@@ -215,30 +218,95 @@ class MainActivity : Activity() {
         cornerRadius = dp(radius).toFloat()
     }
 
+    private fun restoreSelectedGame() {
+        val preferences = getSharedPreferences("storm_launcher", MODE_PRIVATE)
+        selectedName = preferences.getString("selected_name", null)
+            ?: "Belum ada file dipilih"
+        selectedGameUri = preferences.getString("selected_uri", null)?.let {
+            runCatching { Uri.parse(it) }.getOrNull()
+        }
+    }
+
     private fun pickExe() {
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE)
             type = "*/*"
+            addFlags(
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                    Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
+            )
         }
         startActivityForResult(intent, 21)
+    }
+
+    /**
+     * A Storage Access Framework document ID is not always the real filename.
+     * Ask the provider for DISPLAY_NAME instead of inspecting lastPathSegment.
+     */
+    private fun queryDisplayName(uri: Uri): String? {
+        return try {
+            contentResolver.query(
+                uri,
+                arrayOf(OpenableColumns.DISPLAY_NAME),
+                null,
+                null,
+                null
+            )?.use { cursor ->
+                val column = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                if (column >= 0 && cursor.moveToFirst()) {
+                    cursor.getString(column)
+                } else {
+                    null
+                }
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun resolveDisplayName(uri: Uri): String {
+        val providerName = queryDisplayName(uri)?.trim()?.takeIf { it.isNotEmpty() }
+        if (providerName != null) return providerName.substringAfterLast('/')
+
+        val fallback = Uri.decode(uri.lastPathSegment.orEmpty())
+            .substringAfterLast('/')
+            .substringAfterLast(':')
+            .trim()
+        return fallback.ifEmpty { "File dipilih" }
     }
 
     @Deprecated("Deprecated by Android; retained for broad device compatibility")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == 21 && resultCode == RESULT_OK) {
-            val uri: Uri = data?.data ?: return
-            val name = uri.lastPathSegment ?: "File dipilih"
-            if (name.endsWith(".exe", ignoreCase = true)) {
-                selectedName = name.substringAfterLast('/')
-                showHome()
-            } else {
-                AlertDialog.Builder(this)
-                    .setTitle("File bukan EXE")
-                    .setMessage("Pilih NSUNSR.exe dari folder game Windows.")
-                    .setPositiveButton("OK", null)
-                    .show()
+        if (requestCode != 21 || resultCode != RESULT_OK) return
+
+        val uri = data?.data ?: return
+        val fileName = resolveDisplayName(uri)
+
+        // Accept any Windows executable filename; it need not be exactly NSUNSR.exe.
+        if (fileName.endsWith(".exe", ignoreCase = true)) {
+            selectedName = fileName
+            selectedGameUri = uri
+            runCatching {
+                contentResolver.takePersistableUriPermission(
+                    uri, Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
             }
+            getSharedPreferences("storm_launcher", MODE_PRIVATE).edit()
+                .putString("selected_name", selectedName)
+                .putString("selected_uri", uri.toString())
+                .apply()
+            showHome()
+        } else {
+            AlertDialog.Builder(this)
+                .setTitle("Format file tidak didukung")
+                .setMessage(
+                    "File yang dipilih: $fileName\\n" +
+                        "Pilih executable Windows dengan ekstensi .exe. " +
+                        "Nama file tidak harus persis NSUNSR.exe."
+                )
+                .setPositiveButton("OK", null)
+                .show()
         }
     }
 
@@ -246,10 +314,10 @@ class MainActivity : Activity() {
         AlertDialog.Builder(this)
             .setTitle("Engine game native belum tersedia")
             .setMessage(
-                if (selectedName == "Belum ada file dipilih")
-                    "Pilih NSUNSR.exe terlebih dahulu. Preview Vulkan 3D hanya menguji mesin dasar; belum ada engine game Naruto native Android."
+                if (selectedGameUri == null)
+                    "Pilih file executable game (.exe) terlebih dahulu. Preview Vulkan 3D hanya menguji mesin dasar; belum ada engine game Naruto native Android."
                 else
-                    "$selectedName sudah dipilih. File EXE Windows tidak dapat dijalankan langsung oleh Android. Port ARM64 native masih diperlukan."
+                    "$selectedName sudah dipilih dan tersimpan. File EXE Windows tidak dapat dijalankan langsung oleh Android. Port ARM64 native masih diperlukan."
             )
             .setPositiveButton("MENGERTI", null)
             .show()
