@@ -36,14 +36,6 @@ class MainActivity : Activity() {
     private var selectedFolderName = "Folder game belum dipilih"
     private var assetScanReport = "Pilih folder instalasi game untuk mulai inventaris aset."
     private var scanInProgress = false
-    private var extractionInProgress = false
-    private var extractionReport = "Belum ada payload XFBIN yang diekstrak."
-    private var cpkInspectionInProgress = false
-    private var cpkInspectionReport = "Pilih data.cpk atau stage.cpk untuk membaca indeks arsip."
-    private var selectedCpkUri: Uri? = null
-    private var selectedCpkName = "Belum ada CPK dipilih"
-    private var cpkExtractionInProgress = false
-    private var cpkExtractionReport = "Belum ada XFBIN yang diekstrak dari CPK."
     private var battleMode = false
     private var hudText: TextView? = null
     private val hudHandler = Handler(Looper.getMainLooper())
@@ -131,46 +123,29 @@ class MainActivity : Activity() {
     private fun showHome() {
         val content = page()
         content.addView(card {
-            addView(label("NINJA BATTLE EXPERIENCE", 11, orange, true))
-            addView(label("STORM REVOLUTION", 27, white, true))
-            addView(label("Launcher Android mandiri dengan preview mesin 3D Vulkan.", 14, muted))
+            addView(label("NARUTO SHIPPUDEN", 11, orange, true))
+            addView(label("ULTIMATE NINJA STORM REVOLUTION", 23, white, true))
+            addView(label("Pemindai folder instalasi dan pengimpor aset otomatis.", 14, muted))
         })
         content.addView(card {
-            addView(label("GAME TERPILIH", 12, orange, true))
-            addView(label(selectedName, 15, white, true))
-            addView(action("PILIH FILE GAME (.EXE)") { pickExe() })
-            addView(action("UJI PERTARUNGAN 1 VS 1 (PROTOTIPE)") { showBattleScreen() })
+            addView(label("TARGET GAME", 12, orange, true))
+            addView(label("Naruto Shippuden: Ultimate Ninja Storm Revolution", 15, white, true))
+            addView(label("Pilih folder instalasi game saja. APK akan mencari CPK dan XFBIN di semua subfolder yang dapat dibaca.", 12, muted))
         })
         content.addView(card {
-            addView(label("FOLDER DATA GAME", 12, orange, true))
+            addView(label("FOLDER INSTALASI GAME", 12, orange, true))
             addView(label(selectedFolderName, 14, white, true))
-            addView(action("PILIH FOLDER INSTALASI GAME") { pickGameFolder() })
-            addView(action(if (scanInProgress) "MEMERIKSA ASET..." else "INVENTARIS ASET GAME") {
+            addView(action("PILIH FOLDER GAME") { pickGameFolder() })
+            addView(action(if (scanInProgress) "MEMINDAI & MENGIMPOR..." else "PINDAI FOLDER + IMPOR ASET OTOMATIS") {
                 scanGameFolder()
             })
             addView(label(assetScanReport, 11, muted))
-            addView(label("0.12.0: ekstraksi XFBIN dari CPK bernama-TOC dan dekompresi CRILAYLA. Decoder model 3D dan animasi belum selesai.", 10, muted))
-            addView(action(if (extractionInProgress) "MENGEKSTRAK PAYLOAD..." else "PILIH XFBIN & EKSTRAK NUD/NUT") { pickXfbin() })
-            addView(label(extractionReport, 10, muted))
-            addView(action(if (cpkInspectionInProgress) "MEMBACA INDEKS CPK..." else "PILIH CPK & BACA INDEKS") { pickCpk() })
-            addView(label("CPK aktif: $selectedCpkName", 10, muted))
-            addView(label(cpkInspectionReport, 10, muted))
-            addView(action(if (cpkExtractionInProgress) "MENGEKSTRAK XFBIN..." else "EKSTRAK XFBIN DARI CPK") { extractCpkXfbins() })
-            addView(label(cpkExtractionReport, 10, muted))
         })
         content.addView(card {
             addView(label("STATUS PROYEK", 12, orange, true))
-            addView(label("Launcher: aktif", 14, white))
-            addView(label("Storm Engine: Vulkan 3D pipeline, depth buffer, kamera perspektif, mesh uji, input multi-sentuh.", 13, white))
-            addView(label("Runtime khusus Naruto native ARM64: belum tersedia.", 13, muted))
-            addView(label("Tidak ada Wine, Box64, DXVK, atau Winlator.", 12, muted))
-        })
-        content.addView(card {
-            addView(label("MODE PERTARUNGAN 3D — PROTOTIPE", 12, orange, true))
-            addView(label(StormEngine.getVulkanReport(), 12, white))
-            addView(label(StormEngine.getEngineReport(), 11, muted))
-            addView(label("Demo 1 lawan 1: karakter dan arena sementara. Tekan tombol UJI PERTARUNGAN untuk layar landscape.", 11, muted))
-            addView(NativeVulkanSurfaceView(this@MainActivity), LinearLayout.LayoutParams(-1, dp(230)))
+            addView(label("Pencarian folder: otomatis hingga subfolder yang diizinkan Android.", 13, white))
+            addView(label("Impor aset: CPK bernama-TOC, CRILAYLA, XFBIN, NUD, dan NUT yang didukung.", 13, white))
+            addView(label("Runtime game native ARM64: belum tersedia. APK ini belum menjalankan NSUNSR.exe atau game retail.", 13, muted))
         })
         show(content)
     }
@@ -392,17 +367,6 @@ class MainActivity : Activity() {
         }
         assetScanReport = preferences.getString("asset_scan_report", null)
             ?: "Pilih folder instalasi game untuk mulai inventaris aset."
-        extractionReport = preferences.getString("extraction_report", null)
-            ?: "Belum ada payload XFBIN yang diekstrak."
-        cpkInspectionReport = preferences.getString("cpk_inspection_report", null)
-            ?: "Pilih data.cpk atau stage.cpk untuk membaca indeks arsip."
-        selectedCpkUri = preferences.getString("selected_cpk_uri", null)?.let {
-            runCatching { Uri.parse(it) }.getOrNull()
-        }
-        selectedCpkName = preferences.getString("selected_cpk_name", null)
-            ?: "Belum ada CPK dipilih"
-        cpkExtractionReport = preferences.getString("cpk_extraction_report", null)
-            ?: "Belum ada XFBIN yang diekstrak dari CPK."
     }
 
     private fun pickExe() {
@@ -606,7 +570,7 @@ class MainActivity : Activity() {
                 .substringAfterLast('/')
                 .ifBlank { "Folder game dipilih" }
         }.getOrDefault("Folder game dipilih")
-        assetScanReport = "Folder dipilih. Jalankan inventaris untuk memeriksa file game."
+        assetScanReport = "Folder dipilih. Tekan PINDAI FOLDER + IMPOR ASET OTOMATIS."
         getSharedPreferences("storm_launcher", MODE_PRIVATE).edit()
             .putString("selected_folder_name", selectedFolderName)
             .putString("selected_folder_uri", uri.toString())
@@ -624,11 +588,11 @@ class MainActivity : Activity() {
         if (scanInProgress) return
 
         scanInProgress = true
-        assetScanReport = "Sedang memeriksa daftar file dan signature awal..."
+        assetScanReport = "Memindai subfolder, mengekstrak XFBIN dari CPK, lalu mengambil payload NUD/NUT..."
         showHome()
 
         Thread {
-            val result = GameAssetScanner.scan(contentResolver, folderUri)
+            val result = GameAssetScanner.scan(contentResolver, folderUri, filesDir)
             runOnUiThread {
                 scanInProgress = false
                 assetScanReport = result.report
