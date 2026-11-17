@@ -91,7 +91,7 @@ class MainActivity : Activity() {
         content.addView(card {
             addView(label("STATUS PROYEK", 12, orange, true))
             addView(label("Launcher: aktif", 14, white))
-            addView(label("Vulkan native bootstrap: terpasang", 13, white))
+            addView(label("Diagnostik Vulkan + buffer device address: aktif", 13, white))
             addView(label("Engine game native ARM64: belum tersedia", 13, muted))
             addView(label("Tidak ada Wine, Box64, DXVK, atau Winlator.", 12, muted))
         })
