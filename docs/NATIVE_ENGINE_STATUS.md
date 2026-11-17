@@ -1,4 +1,4 @@
-# Storm Engine Native — Status 0.11.0
+# Storm Engine Native — Status 0.12.0
 
 ## Newly implemented playable combat prototype
 
@@ -14,6 +14,13 @@
 ## Important limitation
 
 This is a playable **combat-system prototype**, not yet a playable port of Naruto Shippuden: Ultimate Ninja Storm Revolution. The fighters are original procedural placeholder geometry, and the arena is procedural. No Naruto character models, retail stages, retail textures, skeletal animation, ultimate techniques, voice lines, sound effects, story mode, character select, or original game logic have been integrated.
+
+## Retail data pipeline progress
+
+- Named-TOC CPK archives can now yield XFBIN entries to app-private storage.
+- CRILAYLA-compressed entries are decoded with strict output-size checks and memory limits.
+- Source CPK files remain read-only.
+- ITOC-only archives are not supported yet.
 
 ## Retail data pipeline still required
 
