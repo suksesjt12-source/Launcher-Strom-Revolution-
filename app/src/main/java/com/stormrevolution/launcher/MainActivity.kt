@@ -126,7 +126,7 @@ class MainActivity : Activity() {
                 scanGameFolder()
             })
             addView(label(assetScanReport, 11, muted))
-            addView(label("Mode saat ini hanya inventaris dan membaca header. Belum mengekstrak atau memuat aset ke renderer.", 10, muted))
+            addView(label("0.8.0: metadata CPK/UTF dan index XFBIN dibaca langsung. Payload model, tekstur, animasi, serta gameplay belum didukung.", 10, muted))
         })
         content.addView(card {
             addView(label("STATUS PROYEK", 12, orange, true))
@@ -179,7 +179,7 @@ class MainActivity : Activity() {
         content.addView(label("TENTANG", 24, white, true))
         content.addView(card {
             addView(label("STORM REVOLUTION LAUNCHER", 17, white, true))
-            addView(label("Versi 0.7.0 · Storm Engine + Asset Inspector", 12, orange, true))
+            addView(label("Versi 0.8.0 · Storm Engine + Retail Container Reader", 12, orange, true))
             addView(label("Engine native ARM64 dengan render pipeline 3D awal. Belum memuat runtime khusus Naruto atau menjalankan EXE Windows.", 13, muted))
         })
         show(content)

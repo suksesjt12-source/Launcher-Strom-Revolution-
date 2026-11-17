@@ -53,6 +53,7 @@ object GameAssetScanner {
         var unreadableFolders = 0
         val extensionCounts = sortedMapOf<String, Int>()
         val samples = mutableListOf<Sample>()
+        val containerReports = mutableListOf<RetailContainerInspector.Report>()
         val errors = mutableListOf<String>()
 
         val rootId = try {
@@ -167,12 +168,26 @@ object GameAssetScanner {
 
                         val isRelevant = extension in relevantExtensions ||
                             childName.equals("data.cpk", ignoreCase = true)
+                        val documentUri = DocumentsContract.buildDocumentUriUsingTree(
+                            treeUri,
+                            childId
+                        )
+
+                        // Parse bounded container/index metadata only; never unpack data here.
+                        if ((extension == "cpk" || extension == "xfbin") &&
+                            containerReports.size < 10) {
+                            containerReports.add(
+                                RetailContainerInspector.inspect(
+                                    resolver,
+                                    documentUri,
+                                    relativePath,
+                                    extension
+                                )
+                            )
+                        }
+
                         if (samples.size < MAX_SAMPLES &&
                             (isRelevant || samples.size < 12)) {
-                            val documentUri = DocumentsContract.buildDocumentUriUsingTree(
-                                treeUri,
-                                childId
-                            )
                             samples.add(
                                 Sample(
                                     path = relativePath,
@@ -265,13 +280,24 @@ object GameAssetScanner {
             }
         }
 
+        if (containerReports.isNotEmpty()) {
+            output.append("\nANALISIS CONTAINER RETAIL (maks. 10)\n")
+            containerReports.forEachIndexed { index, report ->
+                output.append("\n").append(index + 1).append(". ")
+                    .append(report.title).append(" — ")
+                    .append(if (report.recognized) "signature dikenali" else "belum dikenali")
+                    .append('\n')
+                output.append(report.details).append('\n')
+            }
+        }
+
         if (errors.isNotEmpty()) {
             output.append("\nCATATAN AKSES\n")
             errors.forEach { output.append("- ").append(it).append('\n') }
         }
 
-        output.append("\nCatatan: ini hanya inventaris dan pembacaan 16 byte awal. ")
-            .append("Belum ada aset yang diekstrak atau diubah.")
+        output.append("\nCatatan: analisis ini hanya membaca metadata CPK/UTF dan header/index XFBIN. ")
+            .append("Payload game belum diekstrak, didekompresi, atau dimuat ke renderer.")
         return Result(
             report = output.toString(),
             files = fileCount,

@@ -1,4 +1,4 @@
-# Storm Engine Native — Status 0.7.0
+# Storm Engine Native — Status 0.8.0
 
 ## Implemented native modules
 
@@ -9,24 +9,26 @@
 - **Vulkan surface:** Android surface, swapchain, command submission and presentation.
 - **Graphics pipeline:** compiled vertex/fragment SPIR-V shaders, vertex buffer, procedural sphere mesh, push-constant transforms, perspective camera, depth image/render pass and depth testing.
 - **Test scene:** low-poly placeholder actor and circular floor assembled from procedural sphere geometry; input moves the actor in the preview.
-- **File picker:** obtains the filename using Android Storage Access Framework `OpenableColumns.DISPLAY_NAME`, accepts any `.exe` filename, and persists the selected URI/name.
+- **File picker:** Android Storage Access Framework reads the provider's actual display name, accepts any .exe filename, and persists the selected URI/name.
 - **Folder access:** Android Storage Access Framework directory permission can be persisted across app restarts.
-- **Asset inventory:** recursive, read-only scan with a 12,000-entry cap, 18-level depth cap, extension counts, known file sizes and 16-byte signature previews. It does not modify or unpack the user's files.
+- **Asset inventory:** recursive, read-only scan with a 12,000-entry cap, 18-level depth cap, extension counts, known file sizes and 16-byte signature previews.
+- **CPK/UTF inspector:** identifies a CPK frame, parses its UTF header/schema and displays bounded sample TOC rows when present. Supports plain and CRI's simple UTF XOR-obfuscated table header. It does not extract archive entries or decompress CRILAYLA.
+- **XFBIN inspector:** reads the NUCC file header, index counts/string tables, validates aggregate table sizes and displays bounded chunk-header locations/sizes. It does not interpret the chunk payload formats.
 
-## Asset format status
+## Retail payload status
 
-The scanner can identify common outer-container signatures such as `CPK ` or `CRILAYLA` when they occur at the beginning of a file. It reports XFBIN/NUD/NUT/ANM by extension and displays their leading bytes without interpreting them.
+No retail payload importer is complete yet. NUD/NDP3 mesh, NUT/NTP3 texture, ANM animation, materials, VFX, audio, scripts and gameplay parameters are not decoded or sent to the renderer. Container metadata parsing is a first stage, not evidence that retail content is playable.
 
-No retail CPK extractor, CRILAYLA decoder, XFBIN/NUCC chunk parser, NUD mesh importer, NUT texture decoder or retail animation parser has been integrated yet. The next parser must be validated against the actual files from the user's PC installation; format assumptions from other game versions or platforms are not enough.
+The CPK and XFBIN readers have been added from format descriptions and public references; they still require validation against actual PC game files. CPK variants, encryption, packing, alignment, or PC-specific differences may result in a clear unsupported-format report.
 
 ## Prototype limits
 
 - The actor is a temporary procedural test model, not a production character asset.
 - No skeletal rig, imported retail 3D model format, retail material/texture system, animation graph, physics or game combat system yet.
-- No game audio backend, sound-bank decoding, save compatibility or proprietary resource parser.
-- No loading or execution of Windows `NSUNSR.exe`.
+- No game audio backend or save compatibility.
+- No loading or execution of Windows NSUNSR.exe.
 - Device runtime rendering still requires testing on physical Android Vulkan hardware; GitHub Actions verifies compilation and APK packaging, not GPU visual output or frame rate.
 
 ## Source and rights
 
-The engine core is original platform infrastructure and procedural test geometry. It does not contain the original commercial game's source or assets. A real game port requires a clean-room implementation and lawful access to the game data used.
+The engine core is original platform infrastructure and procedural test geometry. No proprietary executable or retail game assets are included in the repository. A real game port requires a clean-room implementation and lawful access to the user's game data.
