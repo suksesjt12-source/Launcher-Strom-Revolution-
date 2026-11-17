@@ -91,14 +91,15 @@ class MainActivity : Activity() {
         content.addView(card {
             addView(label("STATUS PROYEK", 12, orange, true))
             addView(label("Launcher: aktif", 14, white))
-            addView(label("Diagnostik Vulkan + buffer device address: aktif", 13, white))
-            addView(label("Engine game native ARM64: belum tersedia", 13, muted))
+            addView(label("Renderer Vulkan native: surface + swapchain aktif", 13, white))
+            addView(label("Game engine Naruto native ARM64: belum tersedia", 13, muted))
             addView(label("Tidak ada Wine, Box64, DXVK, atau Winlator.", 12, muted))
         })
         content.addView(card {
             addView(label("DIAGNOSTIK GPU VULKAN", 12, orange, true))
             addView(label(StormEngine.getVulkanReport(), 12, white))
-            addView(label("Ini memeriksa driver Vulkan perangkat. Modul ini belum menjalankan NSUNSR.exe atau merender game.", 11, muted))
+            addView(label("Preview di bawah ini memakai swapchain Vulkan native. Ini masih layar tes renderer, bukan grafis game.", 11, muted))
+            addView(NativeVulkanSurfaceView(this@MainActivity), LinearLayout.LayoutParams(-1, dp(170)))
         })
         show(content)
     }
@@ -137,7 +138,7 @@ class MainActivity : Activity() {
         content.addView(label("TENTANG", 24, white, true))
         content.addView(card {
             addView(label("STORM REVOLUTION LAUNCHER", 17, white, true))
-            addView(label("Versi 0.1.0 · Native Android", 12, orange, true))
+            addView(label("Versi 0.4.0 · Native Android Vulkan", 12, orange, true))
             addView(label("Aplikasi launcher mandiri berbasis Kotlin. Proyek ini belum memuat game atau engine untuk menjalankan EXE Windows.", 13, muted))
         })
         show(content)

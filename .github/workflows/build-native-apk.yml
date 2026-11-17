@@ -13,7 +13,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: storm-native-apk-${{ github.ref }}
+  group: storm-native-apk-${{ github.event.pull_request.head.ref || github.ref }}
   cancel-in-progress: true
 
 jobs:
