@@ -21,7 +21,7 @@ object RetailContainerInspector {
     private const val MAX_UTF_TABLE_BYTES = 16 * 1024 * 1024
     private const val MAX_CPK_FRAME_SCAN = 8L * 1024 * 1024
     private const val MAX_CPK_SAMPLE_ROWS = 64
-    private const val MAX_CPK_EXTRACT_ROWS = 100_000
+    private const val MAX_CPK_EXTRACT_ROWS = 20_000
     private const val MAX_CPK_EXTRACT_FILES = 512
     private const val MAX_CPK_ENTRY_BYTES = 128L * 1024L * 1024L
     private const val MAX_CPK_OUTPUT_BYTES = 512L * 1024L * 1024L
@@ -31,7 +31,10 @@ object RetailContainerInspector {
     data class Report(
         val title: String,
         val details: String,
-        val recognized: Boolean
+        val recognized: Boolean,
+        val outputDirectory: File? = null,
+        val extractedFiles: Int = 0,
+        val outputBytes: Long = 0L
     )
 
     private data class UtfColumn(
@@ -89,14 +92,22 @@ object RetailContainerInspector {
         resolver: ContentResolver,
         uri: Uri,
         displayName: String,
-        filesDir: File
+        filesDir: File,
+        maxOutputBytes: Long = MAX_CPK_OUTPUT_BYTES,
+        maxExtractedFiles: Int = MAX_CPK_EXTRACT_FILES
     ): Report {
         return try {
             val descriptor = resolver.openFileDescriptor(uri, "r")
                 ?: return Report(displayName, "File descriptor CPK tidak tersedia.", false)
             descriptor.use { pfd ->
                 FileInputStream(pfd.fileDescriptor).channel.use { channel ->
-                    extractCpkEntries(channel, displayName, filesDir)
+                    extractCpkEntries(
+                        channel,
+                        displayName,
+                        filesDir,
+                        maxOutputBytes.coerceIn(0L, MAX_CPK_OUTPUT_BYTES),
+                        maxExtractedFiles.coerceIn(0, MAX_CPK_EXTRACT_FILES)
+                    )
                 }
             }
         } catch (error: Exception) {
@@ -111,7 +122,9 @@ object RetailContainerInspector {
     private fun extractCpkEntries(
         channel: FileChannel,
         displayName: String,
-        filesDir: File
+        filesDir: File,
+        maxOutputBytes: Long,
+        maxExtractedFiles: Int
     ): Report {
         val archiveSize = channel.size()
         if (archiveSize < 32L) {
@@ -163,7 +176,7 @@ object RetailContainerInspector {
         ) ?: return Report(displayName, "Tabel TOC @UTF gagal dibaca.", false)
 
         val rowsToScan = minOf(toc.rowCount, MAX_CPK_EXTRACT_ROWS.toLong())
-        val baseOffset = minOf(tocOffset, contentOffset)
+        val baseOffset = contentOffset
         val outputRoot = File(
             File(filesDir, "retail_cpk"),
             safeFileSegment(displayName.substringBeforeLast('.', displayName)) +
@@ -190,8 +203,8 @@ object RetailContainerInspector {
             if (!fileName.endsWith(".xfbin", ignoreCase = true)) continue
             candidates++
 
-            if (extracted >= MAX_CPK_EXTRACT_FILES ||
-                totalOutput >= MAX_CPK_OUTPUT_BYTES) continue
+            if (extracted >= maxExtractedFiles ||
+                totalOutput >= maxOutputBytes) continue
 
             val storedSize = asLong(row["FileSize"])
             val expandedSize = asLong(row["ExtractSize"])
@@ -216,7 +229,7 @@ object RetailContainerInspector {
                     CriLaylaDecoder.decode(
                         storedBytes,
                         expandedSize,
-                        minOf(MAX_CPK_ENTRY_BYTES, MAX_CPK_OUTPUT_BYTES - totalOutput).toInt()
+                        minOf(MAX_CPK_ENTRY_BYTES, maxOutputBytes - totalOutput).toInt()
                     )
                 } else {
                     if (expandedSize != null && expandedSize > 0L && expandedSize != storedSize) {
@@ -231,7 +244,7 @@ object RetailContainerInspector {
             }
 
             if (outputBytes.isEmpty() ||
-                totalOutput + outputBytes.size.toLong() > MAX_CPK_OUTPUT_BYTES) {
+                totalOutput + outputBytes.size.toLong() > maxOutputBytes) {
                 failed++
                 continue
             }
@@ -290,7 +303,7 @@ object RetailContainerInspector {
         }
         report.append("\nCatatan: XFBIN sudah dikeluarkan dari arsip, tetapi mesh, tekstur, ")
             .append("skeleton, dan animasi masih belum diterjemahkan ke renderer.")
-        return Report(displayName, report.toString(), true)
+        return Report(displayName, report.toString(), true, outputRoot, extracted, totalOutput)
     }
 
     private fun safeFileSegment(value: String): String =
