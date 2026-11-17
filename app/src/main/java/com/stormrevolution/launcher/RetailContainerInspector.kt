@@ -3,6 +3,7 @@ package com.stormrevolution.launcher
 import android.content.ContentResolver
 import android.net.Uri
 import android.os.ParcelFileDescriptor
+import java.io.File
 import java.io.FileInputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -20,6 +21,10 @@ object RetailContainerInspector {
     private const val MAX_UTF_TABLE_BYTES = 16 * 1024 * 1024
     private const val MAX_CPK_FRAME_SCAN = 8L * 1024 * 1024
     private const val MAX_CPK_SAMPLE_ROWS = 64
+    private const val MAX_CPK_EXTRACT_ROWS = 100_000
+    private const val MAX_CPK_EXTRACT_FILES = 512
+    private const val MAX_CPK_ENTRY_BYTES = 128L * 1024L * 1024L
+    private const val MAX_CPK_OUTPUT_BYTES = 512L * 1024L * 1024L
     private const val MAX_XFBIN_CHUNKS = 128
     private const val MAX_STRING_BYTES = 4096
 
@@ -71,6 +76,228 @@ object RetailContainerInspector {
             )
         }
     }
+
+
+    /**
+     * Extracts XFBIN entries from a named-TOC CPK archive.
+     *
+     * CPK input is opened read-only through SAF. Files are written to the
+     * application's private directory; ITOC-only archives are intentionally
+     * rejected until their index layout is implemented.
+     */
+    fun extractXfbinsFromCpk(
+        resolver: ContentResolver,
+        uri: Uri,
+        displayName: String,
+        filesDir: File
+    ): Report {
+        return try {
+            val descriptor = resolver.openFileDescriptor(uri, "r")
+                ?: return Report(displayName, "File descriptor CPK tidak tersedia.", false)
+            descriptor.use { pfd ->
+                FileInputStream(pfd.fileDescriptor).channel.use { channel ->
+                    extractCpkEntries(channel, displayName, filesDir)
+                }
+            }
+        } catch (error: Exception) {
+            Report(
+                displayName,
+                "Ekstraksi CPK gagal: ${error.javaClass.simpleName}: ${error.message ?: "kesalahan I/O"}",
+                false
+            )
+        }
+    }
+
+    private fun extractCpkEntries(
+        channel: FileChannel,
+        displayName: String,
+        filesDir: File
+    ): Report {
+        val archiveSize = channel.size()
+        if (archiveSize < 32L) {
+            return Report(displayName, "File terlalu kecil untuk CPK.", false)
+        }
+
+        val cpkHeader = readBytes(channel, 0L, 16)
+        if (ascii(cpkHeader, 0, 4) != "CPK ") {
+            return Report(displayName, "Signature CPK tidak ditemukan.", false)
+        }
+        val cpkPacketSize = u64le(cpkHeader, 8)
+        if (cpkPacketSize <= 0L || cpkPacketSize > MAX_UTF_TABLE_BYTES.toLong() ||
+            cpkPacketSize > archiveSize - 16L) {
+            return Report(displayName, "Ukuran header CPK tidak valid.", false)
+        }
+        val cpkTable = parseUtfAt(channel, 16L, cpkPacketSize)
+            ?: return Report(displayName, "Header @UTF CPK gagal dibaca.", false)
+        val header = cpkTable.rows.firstOrNull().orEmpty()
+
+        fun asLong(value: Any?): Long? = value?.toString()?.toLongOrNull()
+        val tocOffset = asLong(header["TocOffset"])
+        val contentOffset = asLong(header["ContentOffset"])
+        val itocOffset = asLong(header["ItocOffset"])
+        if (tocOffset == null || contentOffset == null ||
+            tocOffset < 0L || contentOffset < 0L ||
+            tocOffset > archiveSize - 16L || contentOffset > archiveSize) {
+            val note = if (itocOffset != null && itocOffset >= 0L) {
+                "Arsip menggunakan ITOC. Ekstraksi ITOC belum didukung."
+            } else {
+                "TocOffset atau ContentOffset tidak tersedia/valid."
+            }
+            return Report(displayName, note, true)
+        }
+
+        val tocHeader = readBytes(channel, tocOffset, 16)
+        if (ascii(tocHeader, 0, 4) != "TOC ") {
+            return Report(displayName, "Paket TOC bernama tidak ditemukan. ITOC belum didukung.", true)
+        }
+        val tocPacketSize = u64le(tocHeader, 8)
+        if (tocPacketSize <= 0L || tocPacketSize > MAX_UTF_TABLE_BYTES.toLong() ||
+            tocPacketSize > archiveSize - tocOffset - 16L) {
+            return Report(displayName, "Ukuran paket TOC tidak valid.", false)
+        }
+        val toc = parseUtfAt(
+            channel,
+            tocOffset + 16L,
+            tocPacketSize,
+            MAX_CPK_EXTRACT_ROWS
+        ) ?: return Report(displayName, "Tabel TOC @UTF gagal dibaca.", false)
+
+        val rowsToScan = minOf(toc.rowCount, MAX_CPK_EXTRACT_ROWS.toLong())
+        val baseOffset = minOf(tocOffset, contentOffset)
+        val outputRoot = File(
+            File(filesDir, "retail_cpk"),
+            safeFileSegment(displayName.substringBeforeLast('.', displayName)) +
+                "_" + System.currentTimeMillis()
+        )
+        if (!outputRoot.mkdirs() && !outputRoot.isDirectory) {
+            return Report(displayName, "Folder output privat tidak dapat dibuat.", false)
+        }
+
+        var candidates = 0
+        var extracted = 0
+        var compressed = 0
+        var failed = 0
+        var totalOutput = 0L
+        val saved = ArrayList<String>()
+
+        for (rowIndex in 0 until rowsToScan.toInt()) {
+            val row = toc.rows.getOrNull(rowIndex) ?: run {
+                failed++
+                continue
+            }
+            val fileName = row["FileName"]?.toString()?.trim().orEmpty()
+            if (!fileName.endsWith(".xfbin", ignoreCase = true)) continue
+            candidates++
+
+            if (extracted >= MAX_CPK_EXTRACT_FILES ||
+                totalOutput >= MAX_CPK_OUTPUT_BYTES) continue
+
+            val storedSize = asLong(row["FileSize"])
+            val expandedSize = asLong(row["ExtractSize"])
+            val relativeOffset = asLong(row["FileOffset"])
+            if (storedSize == null || relativeOffset == null ||
+                storedSize <= 0L || storedSize > MAX_CPK_ENTRY_BYTES ||
+                relativeOffset < 0L || relativeOffset > Long.MAX_VALUE - baseOffset) {
+                failed++
+                continue
+            }
+            val absoluteOffset = baseOffset + relativeOffset
+            if (absoluteOffset > archiveSize || storedSize > archiveSize - absoluteOffset ||
+                storedSize > Int.MAX_VALUE.toLong()) {
+                failed++
+                continue
+            }
+
+            val storedBytes = readBytes(channel, absoluteOffset, storedSize.toInt())
+            val outputBytes = try {
+                if (CriLaylaDecoder.isCompressed(storedBytes)) {
+                    compressed++
+                    CriLaylaDecoder.decode(
+                        storedBytes,
+                        expandedSize,
+                        minOf(MAX_CPK_ENTRY_BYTES, MAX_CPK_OUTPUT_BYTES - totalOutput).toInt()
+                    )
+                } else {
+                    if (expandedSize != null && expandedSize > 0L && expandedSize != storedSize) {
+                        failed++
+                        continue
+                    }
+                    storedBytes
+                }
+            } catch (_: Exception) {
+                failed++
+                continue
+            }
+
+            if (outputBytes.isEmpty() ||
+                totalOutput + outputBytes.size.toLong() > MAX_CPK_OUTPUT_BYTES) {
+                failed++
+                continue
+            }
+
+            val directory = row["DirName"]?.toString().orEmpty()
+                .replace('\\', '/')
+            val parentParts = (directory + "/" + fileName.substringBeforeLast('/', ""))
+                .split('/')
+                .filter { it.isNotBlank() && it != "." && it != ".." }
+                .map { safeFileSegment(it) }
+            val safeName = safeFileSegment(fileName.substringAfterLast('/'))
+            val parent = parentParts.fold(outputRoot) { current, part -> File(current, part) }
+            if (!parent.exists() && !parent.mkdirs()) {
+                failed++
+                continue
+            }
+            val target = File(parent, safeName)
+            val rootPath = outputRoot.canonicalFile.path + File.separator
+            if (!target.canonicalFile.path.startsWith(rootPath)) {
+                failed++
+                continue
+            }
+
+            try {
+                target.outputStream().use { stream -> stream.write(outputBytes) }
+                totalOutput += outputBytes.size.toLong()
+                extracted++
+                if (saved.size < 20) saved.add(target.relativeTo(outputRoot).path)
+            } catch (_: Exception) {
+                failed++
+            }
+        }
+
+        val report = StringBuilder()
+        report.append("EKSTRAKSI XFBIN DARI CPK\\n")
+        report.append("Arsip: ").append(displayName).append('\\n')
+        report.append("Ukuran CPK: ").append(formatBytes(archiveSize)).append('\\n')
+        report.append("Entri TOC: ").append(toc.rowCount).append('\\n')
+        report.append("Entri diperiksa: ").append(rowsToScan).append('\\n')
+        report.append("File XFBIN ditemukan: ").append(candidates).append('\\n')
+        report.append("File XFBIN diekstrak: ").append(extracted).append('\\n')
+        report.append("File CRILAYLA didekompresi: ").append(compressed).append('\\n')
+        report.append("File gagal/dilewati: ").append(failed).append('\\n')
+        report.append("Output: ").append(formatBytes(totalOutput)).append('\\n')
+        if (toc.rowCount > rowsToScan) {
+            report.append("Peringatan: TOC melebihi batas pemeriksaan ")
+                .append(MAX_CPK_EXTRACT_ROWS).append(" entri.\\n")
+        }
+        report.append("Folder privat: ").append(outputRoot.absolutePath).append('\\n')
+        if (saved.isNotEmpty()) {
+            report.append("\\nCONTOH FILE\\n")
+            saved.forEach { report.append("- ").append(it).append('\\n') }
+        }
+        if (candidates == 0) {
+            report.append("\\nTOC bernama tidak memiliki entri .xfbin yang terdeteksi.")
+        }
+        report.append("\\nCatatan: XFBIN sudah dikeluarkan dari arsip, tetapi mesh, tekstur, ")
+            .append("skeleton, dan animasi masih belum diterjemahkan ke renderer.")
+        return Report(displayName, report.toString(), true)
+    }
+
+    private fun safeFileSegment(value: String): String =
+        value.trim()
+            .replace(Regex("[\\\\/:*?\\"<>|\\u0000-\\u001F]"), "_")
+            .trim('.', ' ')
+            .take(96)
+            .ifBlank { "unnamed" }
 
     private fun inspectCpk(channel: FileChannel, displayName: String): Report {
         val fileSize = channel.size()
@@ -321,7 +548,8 @@ object RetailContainerInspector {
     private fun parseUtfAt(
         channel: FileChannel,
         payloadOffset: Long,
-        payloadLength: Long
+        payloadLength: Long,
+        maxRows: Int = MAX_CPK_SAMPLE_ROWS
     ): UtfTable? {
         if (payloadLength < 8L) return null
         val firstEight = readBytes(channel, payloadOffset, 8)
@@ -406,7 +634,7 @@ object RetailContainerInspector {
         if (calculatedWidth != rowWidth) return null
 
         val rows = ArrayList<Map<String, Any?>>()
-        val displayedRows = minOf(rowCount, MAX_CPK_SAMPLE_ROWS.toLong()).toInt()
+        val displayedRows = minOf(rowCount, maxRows.toLong()).toInt()
         for (rowIndex in 0 until displayedRows) {
             val rowOffset = bodyStart.toLong() + rowsOffset + rowIndex.toLong() * rowWidth
             if (rowOffset < 0L || rowOffset + rowWidth > bodyStart.toLong() + tableSize) return null
