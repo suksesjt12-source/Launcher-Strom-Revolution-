@@ -113,23 +113,23 @@ object RetailContainerInspector {
             )
 
         val output = StringBuilder()
-        output.append("CRI CPK / UTF dikenali\\n")
-        output.append("Ukuran arsip: ").append(formatBytes(fileSize)).append('\\n')
-        output.append("Ukuran paket header: ").append(formatBytes(packetSize)).append('\\n')
-        output.append("Tabel header: ").append(cpkTable.name).append('\\n')
+        output.append("CRI CPK / UTF dikenali\n")
+        output.append("Ukuran arsip: ").append(formatBytes(fileSize)).append('\n')
+        output.append("Ukuran paket header: ").append(formatBytes(packetSize)).append('\n')
+        output.append("Tabel header: ").append(cpkTable.name).append('\n')
         output.append("Kolom header: ")
             .append(cpkTable.columns.joinToString(", ") { it.name })
-            .append('\\n')
+            .append('\n')
 
         val headerRow = cpkTable.rows.firstOrNull().orEmpty()
         val fileCount = headerRow["Files"]
         val contentOffset = headerRow["ContentOffset"]
         val tocOffsetValue = headerRow["TocOffset"]
         val itocOffsetValue = headerRow["ItocOffset"]
-        if (fileCount != null) output.append("Jumlah file tercatat: ").append(fileCount).append('\\n')
-        if (contentOffset != null) output.append("ContentOffset: ").append(contentOffset).append('\\n')
-        if (tocOffsetValue != null) output.append("TocOffset: ").append(tocOffsetValue).append('\\n')
-        if (itocOffsetValue != null) output.append("ItocOffset: ").append(itocOffsetValue).append('\\n')
+        if (fileCount != null) output.append("Jumlah file tercatat: ").append(fileCount).append('\n')
+        if (contentOffset != null) output.append("ContentOffset: ").append(contentOffset).append('\n')
+        if (tocOffsetValue != null) output.append("TocOffset: ").append(tocOffsetValue).append('\n')
+        if (itocOffsetValue != null) output.append("ItocOffset: ").append(itocOffsetValue).append('\n')
 
         val tocOffset = tocOffsetValue?.toString()?.toLongOrNull()
         val tocTable = if (tocOffset != null && tocOffset >= 0L &&
@@ -146,14 +146,14 @@ object RetailContainerInspector {
         } else null
 
         if (tocTable != null) {
-            output.append("\\nTabel TOC: ").append(tocTable.name).append('\\n')
-            output.append("Entri pada TOC: ").append(tocTable.rowCount).append('\\n')
+            output.append("\nTabel TOC: ").append(tocTable.name).append('\n')
+            output.append("Entri pada TOC: ").append(tocTable.rowCount).append('\n')
             output.append("Kolom penting: ")
                 .append(tocTable.columns.filter {
                     it.name in setOf("DirName", "FileName", "FileSize", "ExtractSize", "FileOffset")
                 }.joinToString(", ") { it.name })
-                .append('\\n')
-            output.append("Contoh entri (maksimum $MAX_CPK_SAMPLE_ROWS):\\n")
+                .append('\n')
+            output.append("Contoh entri (maksimum $MAX_CPK_SAMPLE_ROWS):\n")
             for ((index, row) in tocTable.rows.withIndex()) {
                 val directory = row["DirName"]?.toString().orEmpty()
                 val name = row["FileName"]?.toString().orEmpty()
@@ -165,18 +165,18 @@ object RetailContainerInspector {
                     .append(" | file=").append(row["FileSize"] ?: "?")
                     .append(" | extract=").append(row["ExtractSize"] ?: "?")
                     .append(" | offset=").append(row["FileOffset"] ?: "?")
-                    .append('\\n')
+                    .append('\n')
             }
             if (tocTable.rowCount > tocTable.rows.size) {
                 output.append("... menampilkan ").append(tocTable.rows.size)
-                    .append(" dari ").append(tocTable.rowCount).append(" entri.\\n")
+                    .append(" dari ").append(tocTable.rowCount).append(" entri.\n")
             }
         } else {
-            output.append("\\nTOC bernama tidak tersedia atau tidak valid. ")
-                .append("Arsip mungkin memakai ITOC; pembacaan ITOC belum diimplementasikan.\\n")
+            output.append("\nTOC bernama tidak tersedia atau tidak valid. ")
+                .append("Arsip mungkin memakai ITOC; pembacaan ITOC belum diimplementasikan.\n")
         }
 
-        output.append("\\nCatatan: parser membaca metadata secara read-only; ")
+        output.append("\nCatatan: parser membaca metadata secara read-only; ")
             .append("payload file tidak diekstrak atau didekompresi.")
         return Report(displayName, output.toString(), true)
     }
