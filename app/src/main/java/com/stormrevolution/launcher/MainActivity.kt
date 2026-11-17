@@ -3,13 +3,18 @@ package com.stormrevolution.launcher
 import android.app.Activity
 import android.app.AlertDialog
 import android.content.Intent
+import android.content.pm.ActivityInfo
+import android.content.res.Configuration
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.provider.OpenableColumns
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
 import android.widget.Button
 import android.widget.FrameLayout
@@ -35,6 +40,16 @@ class MainActivity : Activity() {
     private var extractionReport = "Belum ada payload XFBIN yang diekstrak."
     private var cpkInspectionInProgress = false
     private var cpkInspectionReport = "Pilih data.cpk atau stage.cpk untuk membaca indeks tanpa mengekstrak arsip."
+    private var battleMode = false
+    private var hudText: TextView? = null
+    private val hudHandler = Handler(Looper.getMainLooper())
+    private val hudUpdater = object : Runnable {
+        override fun run() {
+            val target = hudText ?: return
+            target.text = StormEngine.getEngineReport()
+            hudHandler.postDelayed(this, 500L)
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -120,7 +135,8 @@ class MainActivity : Activity() {
             addView(label("GAME TERPILIH", 12, orange, true))
             addView(label(selectedName, 15, white, true))
             addView(action("PILIH FILE GAME (.EXE)") { pickExe() })
-            addView(action("MAIN SEKARANG") { showEngineNotice() })
+            addView(action("UJI PERTARUNGAN 1 VS 1 (PROTOTIPE)") { showBattleScreen() })
+            addView(action("UJI PERTARUNGAN 1 VS 1 (PROTOTIPE)") { showBattleScreen() })
         })
         content.addView(card {
             addView(label("FOLDER DATA GAME", 12, orange, true))
@@ -144,13 +160,129 @@ class MainActivity : Activity() {
             addView(label("Tidak ada Wine, Box64, DXVK, atau Winlator.", 12, muted))
         })
         content.addView(card {
-            addView(label("PREVIEW RENDERER 3D VULKAN", 12, orange, true))
+            addView(label("MODE PERTARUNGAN 3D — PROTOTIPE", 12, orange, true))
             addView(label(StormEngine.getVulkanReport(), 12, white))
             addView(label(StormEngine.getEngineReport(), 11, muted))
-            addView(label("Kontrol uji: kiri untuk bergerak; area kanan atas dan bawah disiapkan untuk input lompat/serang. Model ini hanya aset uji mesin.", 11, muted))
+            addView(label("Demo 1 lawan 1: karakter dan arena sementara. Tekan tombol UJI PERTARUNGAN untuk layar landscape.", 11, muted))
             addView(NativeVulkanSurfaceView(this@MainActivity), LinearLayout.LayoutParams(-1, dp(230)))
         })
         show(content)
+    }
+
+    private fun showBattleScreen() {
+        battleMode = true
+        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+        window.decorView.systemUiVisibility = (
+            View.SYSTEM_UI_FLAG_FULLSCREEN or
+                View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+                View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
+                View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+            )
+        renderBattleContent()
+    }
+
+    private fun renderBattleContent() {
+        hudHandler.removeCallbacks(hudUpdater)
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(Color.rgb(8, 11, 18))
+            setPadding(dp(6), dp(2), dp(6), dp(3))
+        }
+
+        val top = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        top.addView(label("STORM COMBAT · 1 VS CPU", 12, orange, true),
+            LinearLayout.LayoutParams(dp(150), -1))
+        val status = TextView(this).apply {
+            text = "Memulai simulasi..."
+            textSize = 8f
+            maxLines = 3
+            setTextColor(white)
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        hudText = status
+        top.addView(status, LinearLayout.LayoutParams(0, -1, 1f))
+        val reset = Button(this).apply {
+            text = "ULANGI"
+            textSize = 9f
+            isAllCaps = false
+            setTextColor(white)
+            setBackgroundColor(Color.rgb(55, 63, 78))
+            setOnClickListener { StormEngine.resetGame() }
+        }
+        top.addView(reset, LinearLayout.LayoutParams(dp(64), dp(34)))
+        val back = Button(this).apply {
+            text = "KELUAR"
+            textSize = 9f
+            isAllCaps = false
+            setTextColor(Color.BLACK)
+            background = rounded(orange, 8)
+            setOnClickListener { closeBattle() }
+        }
+        top.addView(back, LinearLayout.LayoutParams(dp(64), dp(34)))
+        root.addView(top, LinearLayout.LayoutParams(-1, dp(36)))
+
+        val scene = NativeVulkanSurfaceView(this)
+        root.addView(scene, LinearLayout.LayoutParams(-1, 0, 1f))
+
+        val controls = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+        }
+        controls.addView(fightButton("LOMPAT", 1101, 0.12f),
+            LinearLayout.LayoutParams(0, dp(46), 1f))
+        controls.addView(fightButton("SERANG", 1102, 0.37f),
+            LinearLayout.LayoutParams(0, dp(46), 1f))
+        controls.addView(fightButton("BERTAHAN", 1103, 0.62f),
+            LinearLayout.LayoutParams(0, dp(46), 1f))
+        controls.addView(fightButton("JURUS", 1104, 0.87f),
+            LinearLayout.LayoutParams(0, dp(46), 1f))
+        root.addView(controls, LinearLayout.LayoutParams(-1, dp(48)))
+        setContentView(root)
+        hudHandler.post(hudUpdater)
+    }
+
+    private fun fightButton(title: String, pointerId: Int, zoneY: Float): Button =
+        Button(this).apply {
+            text = title
+            textSize = 10f
+            isAllCaps = false
+            setTextColor(white)
+            background = rounded(Color.rgb(36, 46, 64), 10)
+            setOnTouchListener { _, event ->
+                when (event.actionMasked) {
+                    MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN ->
+                        StormEngine.sendTouch(pointerId, 0.84f, zoneY, MotionEvent.ACTION_DOWN)
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP ->
+                        StormEngine.sendTouch(pointerId, 0.84f, zoneY, MotionEvent.ACTION_UP)
+                    MotionEvent.ACTION_CANCEL ->
+                        StormEngine.sendTouch(pointerId, 0.84f, zoneY, MotionEvent.ACTION_CANCEL)
+                }
+                true
+            }
+        }
+
+    private fun closeBattle() {
+        battleMode = false
+        hudHandler.removeCallbacks(hudUpdater)
+        hudText = null
+        StormEngine.stopRenderer()
+        window.decorView.systemUiVisibility = 0
+        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        buildShell()
+        showHome()
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        if (battleMode) renderBattleContent()
+    }
+
+    @Suppress("DEPRECATION")
+    override fun onBackPressed() {
+        if (battleMode) closeBattle() else super.onBackPressed()
     }
 
     private fun showLibrary() {
