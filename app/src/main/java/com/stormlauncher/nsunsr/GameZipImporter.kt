@@ -54,29 +54,43 @@ internal object GameZipImporter {
                 throw IllegalStateException("Tidak dapat menyiapkan folder ekstraksi.")
             }
 
-            var entryCount = 0
             var extractedBytes = 0L
             var knownExpandedBytes = 0L
 
             ZipFile(archive).use { zip ->
-                val entries = zip.entries()
-                while (entries.hasMoreElements()) {
-                    val entry = entries.nextElement()
-                    entryCount += 1
-                    if (entryCount > MAX_ENTRIES) {
+                val entries = mutableListOf<java.util.zip.ZipEntry>()
+                val enumeration = zip.entries()
+                while (enumeration.hasMoreElements()) {
+                    val entry = enumeration.nextElement()
+                    if (entries.size >= MAX_ENTRIES) {
                         throw IllegalArgumentException("ZIP berisi terlalu banyak entri.")
                     }
-
-                    val originalName = entry.name
-                    if (originalName.isBlank()) continue
-                    if (!isSafeEntryPath(originalName)) {
+                    if (entry.name.isBlank()) continue
+                    if (!isSafeEntryPath(entry.name)) {
                         throw IllegalArgumentException("Arsip ditolak: ditemukan nama path yang tidak aman.")
                     }
+                    if (entry.size > 0L) {
+                        knownExpandedBytes += entry.size
+                        if (knownExpandedBytes > MAX_EXPANDED_BYTES) {
+                            throw IllegalArgumentException("Ukuran hasil ekstraksi melewati batas keamanan 80 GB.")
+                        }
+                    }
+                    entries += entry
+                }
 
-                    val normalizedName = originalName.replace('\\', '/')
+                val requiredSpace = knownExpandedBytes + REQUIRED_FREE_BYTES
+                val availableSpace = StatFs(baseDirectory.absolutePath).availableBytes
+                if (availableSpace < requiredSpace) {
+                    throw IllegalStateException("Ruang penyimpanan tidak cukup. ZIP membutuhkan sekitar \${knownExpandedBytes / (1024L * 1024L)} MB ruang ekstraksi tambahan.")
+                }
+
+                for (entry in entries) {
+                    val normalizedName = entry.name.replace('\\', '/')
                     val outputFile = File(staging, normalizedName).canonicalFile
-                    val stagingRoot = staging.canonicalPath + File.separator
-                    if (!outputFile.path.startsWith(stagingRoot)) {
+                    val stagingCanonical = staging.canonicalPath
+                    val stagingRoot = stagingCanonical + File.separator
+                    val isStagingRootDirectory = entry.isDirectory && outputFile.path == stagingCanonical
+                    if (!isStagingRootDirectory && !outputFile.path.startsWith(stagingRoot)) {
                         throw IllegalArgumentException("Arsip ditolak: entri mencoba keluar dari folder ekstraksi.")
                     }
 
@@ -85,13 +99,6 @@ internal object GameZipImporter {
                             throw IllegalStateException("Gagal membuat folder di dalam arsip.")
                         }
                         continue
-                    }
-
-                    if (entry.size > 0L) {
-                        knownExpandedBytes += entry.size
-                        if (knownExpandedBytes > MAX_EXPANDED_BYTES) {
-                            throw IllegalArgumentException("Ukuran hasil ekstraksi melewati batas keamanan 80 GB.")
-                        }
                     }
 
                     val parent = outputFile.parentFile
@@ -123,12 +130,6 @@ internal object GameZipImporter {
 
             if (!isPortableExecutable(executableInStaging)) {
                 throw IllegalArgumentException("NSUNSR.exe ditemukan, tetapi header Windows PE tidak valid.")
-            }
-
-            val requiredSpace = maxOf(knownExpandedBytes, extractedBytes) + REQUIRED_FREE_BYTES
-            val availableSpace = StatFs(baseDirectory.absolutePath).availableBytes
-            if (availableSpace < REQUIRED_FREE_BYTES) {
-                throw IllegalStateException("Ruang penyimpanan tidak cukup untuk menyelesaikan impor.")
             }
 
             val relativeExecutable = executableInStaging.relativeTo(staging).path
