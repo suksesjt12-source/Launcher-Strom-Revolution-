@@ -196,7 +196,7 @@ private fun HomeScreen(game: InstalledGame?, importing: Boolean, notice: String,
                 Text("GAME TERDETEKSI", color = Color(0xFF8FE0AE), fontWeight = FontWeight.Bold, fontSize = 13.sp)
                 Text(game.executable.name, color = Color.White, fontWeight = FontWeight.SemiBold)
                 Text(game.executable.parentFile?.absolutePath ?: game.directory.absolutePath, color = Muted, fontSize = 10.sp)
-                Text("\${game.fileCount} file • \${game.cpkCount} file CPK", color = Gold, fontSize = 11.sp)
+                Text("${game.fileCount} file • ${game.cpkCount} file CPK", color = Gold, fontSize = 11.sp)
                 Text(
                     if (game.hasDataFolder) "Folder data_win32 ditemukan." else "Folder data_win32 tidak terdeteksi; periksa kelengkapan ZIP.",
                     color = Muted, fontSize = 11.sp
@@ -324,7 +324,7 @@ private fun SettingsScreen(context: Context) {
         }
 
         PanelCard(title = "BATAS FRAME RATE") {
-            Text("\${fps.toInt()} FPS", color = Gold, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            Text("${fps.toInt()} FPS", color = Gold, fontWeight = FontWeight.Bold, fontSize = 18.sp)
             Slider(value = fps, onValueChange = { fps = it }, valueRange = 20f..60f, steps = 7)
             Text("Profil awal yang disarankan: 30 FPS.", color = Muted, fontSize = 11.sp)
         }
