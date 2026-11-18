@@ -235,7 +235,7 @@ private fun HomeScreen(game: InstalledGame?, importing: Boolean, notice: String,
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(disabledContainerColor = PanelRaised, disabledContentColor = Muted)
             ) {
-                Text("MAINkan GAME — MENUNGGU RUNTIME", fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                Text("MAIN GAME — RUNTIME BELUM TERSEDIA", fontWeight = FontWeight.Bold, fontSize = 11.sp)
             }
         }
 
