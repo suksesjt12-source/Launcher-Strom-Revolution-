@@ -1,40 +1,43 @@
-STORM LAUNCHER — THIRD-PARTY OPEN-SOURCE NOTICES
-==================================================
+STORM REVOLUTION LAUNCHER — THIRD-PARTY REFERENCES
+====================================================
 
-Storm Launcher integrates with and relies upon the following open-source projects.
-All trademarks and copyrights belong to their respective authors. No proprietary
-game assets or binaries are included in this repository or APK.
+Runtime status for version 0.1.0
+--------------------------------
+This version contains the Android launcher shell and ZIP game importer only.
+It does not bundle or link Wine, Box64, Box86, DXVK, PulseAudio, a Linux
+RootFS, Windows system files, or commercial game data. Runtime build scripts
+and references in this repository are experimental planning material and
+are not proof that any component has been built, integrated, or tested.
 
-1. Wine (Wine Is Not an Emulator)
-   - Upstream: https://www.winehq.org/
-   - License: GNU Lesser General Public License v2.1 (LGPL-2.1)
-   - Role: Windows API compatibility layer, WoW64 subsystem, WineD3D Direct3D 9 translation.
+Planned upstream components
+----------------------------
+The following projects may be evaluated for a future, independently packaged
+Windows compatibility runtime. Their licenses must be reviewed before any
+source code or binary is redistributed:
+
+1. Wine
+   Upstream: https://www.winehq.org/
+   License: LGPL-2.1 or later, subject to the relevant component.
 
 2. Box64
-   - Upstream: https://github.com/ptitSeb/box64
-   - License: MIT License
-   - Role: Linux Userspace x86_64-to-ARM64 translator with DynaRec JIT.
+   Upstream: https://github.com/ptitSeb/box64
+   License: MIT.
 
 3. Box86
-   - Upstream: https://github.com/ptitSeb/box86
-   - License: MIT License
-   - Role: Optional Linux Userspace x86-to-ARM32 translator for multiarch devices.
+   Upstream: https://github.com/ptitSeb/box86
+   License: MIT.
 
 4. DXVK
-   - Upstream: https://github.com/doitsujin/dxvk
-   - License: zlib/libpng License
-   - Role: Vulkan-based Direct3D 9 / 10 / 11 translation layer.
+   Upstream: https://github.com/doitsujin/dxvk
+   License: zlib/libpng.
 
-5. Winlator (Reference Architecture)
-   - Upstream: https://github.com/winebox64/winlator
-   - License: MIT License
-   - Role: Architectural reference for Android non-root Wine + Box64 containerization.
+5. PulseAudio
+   Upstream: https://www.freedesktop.org/wiki/Software/PulseAudio/
+   License: LGPL and other component-specific licenses.
 
-6. PulseAudio
-   - Upstream: https://www.freedesktop.org/wiki/Software/PulseAudio/
-   - License: GNU Lesser General Public License v2.1 (LGPL-2.1)
-   - Role: Userspace audio routing with configurable anti-underrun buffering.
+6. Android Jetpack, Kotlin, and Jetpack Compose
+   Upstream: https://developer.android.com/jetpack
+   License: Apache-2.0.
 
-7. Android Jetpack, Compose, Material 3, Kotlinx Serialization, DataStore
-   - Upstream: https://developer.android.com/jetpack
-   - License: Apache License 2.0
+No proprietary Naruto game files, executable files, CPK archives, firmware,
+or third-party game artwork are included in this repository.
