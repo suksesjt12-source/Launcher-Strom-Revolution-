@@ -41,8 +41,8 @@ internal object GameZipImporter {
             throw IllegalStateException("Tidak dapat membuat folder penyimpanan game.")
         }
 
-        val archive = File(context.cacheDir, "storm-import-\${UUID.randomUUID()}.zip")
-        val staging = File(baseDirectory, ".import-\${UUID.randomUUID()}")
+        val archive = File(context.cacheDir, "storm-import-${UUID.randomUUID()}.zip")
+        val staging = File(baseDirectory, ".import-${UUID.randomUUID()}")
         val destination = File(baseDirectory, "Naruto-Storm-Revolution")
         val backup = File(baseDirectory, ".previous-install")
         var oldInstallMoved = false
@@ -81,7 +81,7 @@ internal object GameZipImporter {
                 val requiredSpace = knownExpandedBytes + REQUIRED_FREE_BYTES
                 val availableSpace = StatFs(baseDirectory.absolutePath).availableBytes
                 if (availableSpace < requiredSpace) {
-                    throw IllegalStateException("Ruang penyimpanan tidak cukup. ZIP membutuhkan sekitar \${knownExpandedBytes / (1024L * 1024L)} MB ruang ekstraksi tambahan.")
+                    throw IllegalStateException("Ruang penyimpanan tidak cukup. ZIP membutuhkan sekitar ${knownExpandedBytes / (1024L * 1024L)} MB ruang ekstraksi tambahan.")
                 }
 
                 for (entry in entries) {
