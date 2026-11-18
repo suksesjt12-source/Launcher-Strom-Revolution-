@@ -1,21 +1,23 @@
-# Game Configuration Guide (`NSUNSR_OPTIMIZED`)
+# Profil konfigurasi game
 
-## Default Profile (`NSUNSR_OPTIMIZED`)
-Designed for **Infinix Hot 50 4G (MediaTek Helio G100, Mali-G57 MC2, 8 GB RAM)**:
-- **Resolution:** `960x540` (16:9 native scaling, zero HUD clipping)
-- **FPS Limit:** `30 FPS` (matches game logic stability without thermal throttling)
-- **VSync:** `Off` (minimizes input latency at 30 FPS)
-- **Graphics Backend:** `Automatic` (DXVK when Mali Vulkan is verified, otherwise WineD3D)
-- **CPU Mode:** `Balanced` (`BOX64_DYNAREC_BIGBLOCK=2`, `BOX64_DYNAREC_STRONGMEM=1`)
-- **Audio:** `PulseAudio` with `64 ms` anti-underrun buffer (`>= 48 ms` minimum)
-- **Shader Cache:** `Enabled` (`files/cache/shaders/`)
+## Nilai awal yang disarankan sebagai preferensi
 
-## Presets
-| Preset | Resolution | Target FPS | Filtering | CPU DynaRec |
-| --- | --- | --- | --- | --- |
-| **LOW** | `854x480` | `30 FPS` | Bilinear (1x) | Balanced |
-| **BALANCED** | `960x540` | `30 FPS` | Anisotropic 4x | Balanced |
-| **HIGH** | `1280x720` | `60 FPS` | Anisotropic 8x | Performance |
+Target pengembangan saat ini adalah Infinix Hot 50 4G dengan MediaTek Helio G100, Mali-G57 MC2, dan RAM 8 GB.
 
-## Wine Prefix Isolation
-All registry hives, `drive_c`, and Direct3D 9 overrides live inside private app storage (`files/prefix/`). Use **Create / Repair**, **Backup ZIP**, **Restore ZIP**, or **Reset** under **Configuration** without affecting external files.
+| Opsi | Preferensi awal |
+| --- | --- |
+| Resolusi | 960 × 540 |
+| Batas FPS | 30 |
+| Mode CPU | BALANCED |
+| Renderer | AUTO |
+| Audio | PULSEAUDIO |
+
+Pilihan tambahan tersedia di layar PENGATURAN.
+
+## Status implementasi
+
+Nilai di layar pengaturan saat ini disimpan di SharedPreferences sebagai profil launcher. Nilai tersebut belum mengubah proses game karena runtime Windows dan backend grafis/audio belum tersedia. Tidak ada klaim bahwa 30 FPS atau 60 FPS sudah dapat dicapai pada perangkat sasaran.
+
+## Tahap integrasi berikutnya
+
+Saat runtime tersedia, profil harus diterjemahkan menjadi opsi yang benar-benar digunakan oleh proses game. Setiap opsi perlu divalidasi pada perangkat fisik; pengaturan yang tidak didukung GPU Mali atau backend runtime harus disembunyikan atau ditandai tidak tersedia.
