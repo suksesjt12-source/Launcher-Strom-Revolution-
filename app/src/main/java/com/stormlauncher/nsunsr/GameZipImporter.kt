@@ -32,7 +32,13 @@ internal object GameZipImporter {
             prefs.edit().clear().apply()
             return null
         }
-        return buildGameInfo(directory, executable)
+        return InstalledGame(
+            directory = directory,
+            executable = executable,
+            fileCount = prefs.getInt("game_file_count", 0),
+            cpkCount = prefs.getInt("game_cpk_count", 0),
+            hasDataFolder = prefs.getBoolean("game_has_data_folder", false)
+        )
     }
 
     fun importZip(context: Context, uri: Uri): InstalledGame {
@@ -154,12 +160,16 @@ internal object GameZipImporter {
             }
 
             val installedExecutable = File(destination, relativeExecutable)
+            val installedInfo = buildGameInfo(destination, installedExecutable)
             context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
                 .putString("game_directory", destination.absolutePath)
                 .putString("game_executable", installedExecutable.absolutePath)
+                .putInt("game_file_count", installedInfo.fileCount)
+                .putInt("game_cpk_count", installedInfo.cpkCount)
+                .putBoolean("game_has_data_folder", installedInfo.hasDataFolder)
                 .apply()
 
-            return buildGameInfo(destination, installedExecutable)
+            return installedInfo
         } finally {
             archive.delete()
             if (!installCommitted) staging.deleteRecursively()
